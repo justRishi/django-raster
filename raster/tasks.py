@@ -1,12 +1,13 @@
 import shutil
 import traceback
+from asgiref.sync import sync_to_async
 
 from celery import group, shared_task
 
 from django.conf import settings
 from raster.tiles.const import GLOBAL_MAX_ZOOM_LEVEL, MIN_ZOOMLEVEL_TASK_PARALLEL
 from raster.tiles.parser import RasterLayerParser
-
+import gc
 
 @shared_task
 def create_tiles(rasterlayer_id, zoom, extract_metadata=False):
@@ -47,8 +48,9 @@ def create_tiles(rasterlayer_id, zoom, extract_metadata=False):
         if hasattr(parser, 'tmpdir'):
             tmpdir = parser.tmpdir
             parser.dataset = None
-            parser = None
+            del parser
             shutil.rmtree(tmpdir)
+            gc.collect()
 
 
 @shared_task
@@ -130,3 +132,6 @@ def parse(rasterlayer_id):
         all_in_one.delay(rasterlayer_id, zoom_range)
     else:
         all_in_one(rasterlayer_id, zoom_range)
+    
+    parser = None
+    gc.collect()

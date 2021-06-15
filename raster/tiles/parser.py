@@ -9,6 +9,8 @@ from urllib.request import urlretrieve
 
 import boto3
 import numpy
+import gc
+import math
 
 from django.conf import settings
 from django.contrib.gis.gdal import GDALRaster, OGRGeometry
@@ -18,12 +20,17 @@ from django.dispatch import Signal
 from raster.exceptions import RasterException
 from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerReprojected, RasterTile
 from raster.tiles import utils
-from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
+from raster.tiles.const import BATCH_STEP_SIZE, BATCH_TO_DB_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE, USE_VSIMEM
 
+import ctypes
+
+
+# will not work with Django 4.x
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
 
 
 class RasterLayerParser(object):
+    
     """
     Class to parse raster layers.
     """
@@ -33,8 +40,11 @@ class RasterLayerParser(object):
         # Set raster tilesize
         self.tilesize = int(getattr(settings, 'RASTER_TILESIZE', WEB_MERCATOR_TILESIZE))
         self.batch_step_size = int(getattr(settings, 'RASTER_BATCH_STEP_SIZE', BATCH_STEP_SIZE))
-        self.s3_endpoint_url = getattr(settings, 'RASTER_S3_ENDPOINT_URL', None)
+        self.batch_write_to_db_size = int(getattr(settings, 'RASTER_BATCH_TO_DB_SIZE', BATCH_TO_DB_SIZE))
+        self.use_vsimem = bool(getattr(settings, 'RASTER_USE_VSIMEM', USE_VSIMEM))
 
+        self.s3_endpoint_url = getattr(settings, 'RASTER_S3_ENDPOINT_URL', None)
+       
     def log(self, msg, status=None, zoom=None):
         """
         Write a message to the parse log of the rasterlayer instance and update
@@ -93,11 +103,14 @@ class RasterLayerParser(object):
                 bucket_key = '/'.join(url.split('s3://')[1].split('/')[1:])
                 # Assume the file name is the last piece of the key.
                 filename = bucket_key.split('/')[-1]
+                
                 filepath = os.path.join(self.tmpdir, filename)
+
                 # Get file from s3.
                 s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
                 bucket = s3.Bucket(bucket_name)
                 bucket.download_file(bucket_key, filepath, ExtraArgs={'RequestPayer': 'requester'})
+
             else:
                 raise RasterException('Only http(s) and s3 urls are supported.')
         else:
@@ -136,6 +149,7 @@ class RasterLayerParser(object):
             self.dataset = None
             for match in matches:
                 try:
+                     # change to vsis3 or vsimem
                     self.dataset = GDALRaster(match)
                     break
                 except GDALException:
@@ -146,6 +160,11 @@ class RasterLayerParser(object):
                 raise RasterException('Could not open rasterfile.')
         else:
             self.dataset = GDALRaster(filepath)
+
+            self.log("tmp for reading file {0} size {1}MB".format(self.dataset.name, math.ceil(os.path.getsize(filepath)/1024/1024)))
+
+        if self.use_vsimem:
+            self.log("....using gdal vsimem")
 
         # Override srid if provided
         if self.rasterlayer.srid:
@@ -218,7 +237,7 @@ class RasterLayerParser(object):
             self.rasterlayer.reprojected.save()
             # Remove tmp file
             os.unlink(dest.name)
-
+            del dest_zip
         self.log('Finished transforming raster.')
 
     def create_initial_histogram_buckets(self):
@@ -288,6 +307,7 @@ class RasterLayerParser(object):
         else:
             for zoom in zoom_levels:
                 self.populate_tile_level(zoom)
+        gc.collect()
 
     def populate_tile_level(self, zoom):
         """
@@ -297,6 +317,8 @@ class RasterLayerParser(object):
         then creates  the tiles from the snapped raster.
         """
         # Abort if zoom level is above resolution of the raster layer
+        libc = ctypes.CDLL("libc.so.6")
+
         if zoom > self.max_zoom:
             return
         elif zoom == self.max_zoom:
@@ -311,6 +333,9 @@ class RasterLayerParser(object):
         # Process quadrants in parallell
         for indexrange in quadrants:
             self.process_quadrant(indexrange, zoom)
+            indexrange = None
+            gc.collect()
+            libc.malloc_trim(0)
 
         # Store histogram data
         if zoom == self.max_zoom:
@@ -320,8 +345,8 @@ class RasterLayerParser(object):
                 bandmeta.save()
 
         self.log('Finished parsing at zoom level {0}.'.format(zoom), zoom=zoom)
-
     _quadrant_count = 0
+    
 
     def process_quadrant(self, indexrange, zoom):
         """
@@ -330,7 +355,14 @@ class RasterLayerParser(object):
         """
         # TODO Use a standalone celery task for this method in order to
         # gain speedup from parallelism.
+        snapped_dataset = None
+        bounds = None
+        tilescale = None
+        libc = ctypes.CDLL("libc.so.6")
+
         self._quadrant_count += 1
+        count_written = 0
+
         self.log(
             'Starting tile creation for quadrant {0} at zoom level {1}'.format(self._quadrant_count, zoom),
             status=self.rasterlayer.parsestatus.CREATING_TILES
@@ -341,17 +373,32 @@ class RasterLayerParser(object):
 
         # Compute quadrant bounds and create destination file
         bounds = utils.tile_bounds(indexrange[0], indexrange[1], zoom)
-        dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
 
-        # Snap dataset to the quadrant
-        snapped_dataset = self.dataset.warp({
-            'name': dest_file_name,
-            'origin': [bounds[0], bounds[3]],
-            'scale': [tilescale, -tilescale],
-            'width': (indexrange[2] - indexrange[0] + 1) * self.tilesize,
-            'height': (indexrange[3] - indexrange[1] + 1) * self.tilesize,
-        })
+        dest_file_name = None
+        snapped_dataset = None
+        if self.use_vsimem:
+            dest_file_name = os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))
 
+            # Snap dataset to the quadrant
+            snapped_dataset = self.dataset.warp({
+                'name': dest_file_name,
+                'origin': [bounds[0], bounds[3]],
+                'scale': [tilescale, -tilescale],
+                'width': (indexrange[2] - indexrange[0] + 1) * self.tilesize,
+                'height': (indexrange[3] - indexrange[1] + 1) * self.tilesize,
+            })
+        else:
+            # Snap dataset to the quadrant
+            snapped_dataset = self.dataset.warp({
+                'origin': [bounds[0], bounds[3]],
+                'scale': [tilescale, -tilescale],
+                'width': (indexrange[2] - indexrange[0] + 1) * self.tilesize,
+                'height': (indexrange[3] - indexrange[1] + 1) * self.tilesize,
+            })
+            # self.log("snapped ds: {0}".format(snapped_dataset.name))
+
+            # self.log("....using tmp file {0}".format(dest_file_name))
+        
         # Create all tiles in this quadrant in batches
         batch = []
         for tilex in range(indexrange[0], indexrange[2] + 1):
@@ -391,6 +438,8 @@ class RasterLayerParser(object):
                     'bands': band_data,
                 })
 
+                # self.log("temp tiles file out: {0} ".format(dest.name))
+
                 # Store tile in batch array
                 batch.append(
                     RasterTile(
@@ -402,18 +451,36 @@ class RasterLayerParser(object):
                     )
                 )
 
-                # Commit batch to database and reset it
+                #Commit batch to database and reset it
                 if len(batch) == self.batch_step_size:
-                    RasterTile.objects.bulk_create(batch)
+                    count_written += len(batch)
+                    RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
+                    self.log("....{0}% of tiles written.".format(round(count_written/self.nr_of_tiles(zoom)*100)))
+                    for b in batch:
+                        del b
+                    gc.collect()
+
+                    batch = None
+                    del dest
+                    del band_data
+                    del bounds
+                    gc.collect()
                     batch = []
+                    libc.malloc_trim(0)
 
-        # Commit remaining objects
+
         if len(batch):
-            RasterTile.objects.bulk_create(batch)
+            RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
+                    
+        try:
+            
+            del bounds
+            del tilescale
+            del snapped_dataset
+            # libc.malloc_trim(0)
+        except:
+            self.log(".")     
 
-        # Remove quadrant raster tempfile.
-        snapped_dataset = None
-        os.remove(dest_file_name)
 
     def push_histogram(self, data):
         """
@@ -442,7 +509,9 @@ class RasterLayerParser(object):
             'Successfully finished parsing raster',
             status=self.rasterlayer.parsestatus.FINISHED
         )
+
         rasterlayers_parser_ended.send(sender=self.rasterlayer.__class__, instance=self.rasterlayer)
+    
 
     def compute_max_zoom(self):
         """
