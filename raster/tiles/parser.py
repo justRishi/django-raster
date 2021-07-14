@@ -19,8 +19,10 @@ from raster.exceptions import RasterException
 from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerReprojected, RasterTile
 from raster.tiles import utils
 from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
+from asgiref.sync import sync_to_async
 
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
+
 
 
 class RasterLayerParser(object):
@@ -263,21 +265,25 @@ class RasterLayerParser(object):
 
         # Extract band metadata
         for i, band in enumerate(self.dataset.bands):
-            bandmeta = RasterLayerBandMetadata.objects.filter(rasterlayer=self.rasterlayer, band=i).first()
-            if not bandmeta:
-                bandmeta = RasterLayerBandMetadata(rasterlayer=self.rasterlayer, band=i)
-
-            bandmeta.nodata_value = band.nodata_value
-            bandmeta.min = band.min
-            bandmeta.max = band.max
-            # Depending on Django version, the band statistics include std and mean.
-            if hasattr(band, 'std'):
-                bandmeta.std = band.std
-            if hasattr(band, 'mean'):
-                bandmeta.mean = band.mean
-            bandmeta.save()
+            sync_to_async(self.extract_meta_from_band(i, band))
 
         self.log('Finished extracting metadata from raster.')
+
+    def extract_meta_from_band(self, i, band):
+        bandmeta = RasterLayerBandMetadata.objects.filter(rasterlayer=self.rasterlayer, band=i).first()
+        if not bandmeta:
+            bandmeta = RasterLayerBandMetadata(rasterlayer=self.rasterlayer, band=i)
+
+        bandmeta.nodata_value = band.nodata_value
+        bandmeta.min = band.min
+        bandmeta.max = band.max
+            # Depending on Django version, the band statistics include std and mean.
+        if hasattr(band, 'std'):
+            bandmeta.std = band.std
+        if hasattr(band, 'mean'):
+            bandmeta.mean = band.mean
+        bandmeta.save()
+        self.log('Finished extracting meta for band {0}.'.format(bandmeta.band))
 
     def create_tiles(self, zoom_levels):
         """
@@ -310,7 +316,7 @@ class RasterLayerParser(object):
 
         # Process quadrants in parallell
         for indexrange in quadrants:
-            self.process_quadrant(indexrange, zoom)
+            sync_to_async(self.process_quadrant(indexrange, zoom))
 
         # Store histogram data
         if zoom == self.max_zoom:
@@ -404,10 +410,9 @@ class RasterLayerParser(object):
                         )
                     )
 
-                    # Commit batch to database and reset it
-                    if len(batch):
-                        RasterTile.objects.bulk_create(batch, self.batch_step_size)
-                        batch = []
+            # Commit batch to database and reset it
+            if len(batch):
+                RasterTile.objects.bulk_create(batch, self.batch_step_size)
         finally:
             # Remove quadrant raster tempfile.
             snapped_dataset = None
