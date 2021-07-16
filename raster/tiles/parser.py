@@ -264,8 +264,7 @@ class RasterLayerParser(object):
         meta.save()
 
         # Extract band metadata
-        for i, band in enumerate(self.dataset.bands):
-            sync_to_async(self.extract_meta_from_band(i, band))
+        [sync_to_async(self.extract_meta_from_band(i, band)) for i, band in enumerate(self.dataset.bands)]
 
         self.log('Finished extracting metadata from raster.')
 
@@ -315,8 +314,8 @@ class RasterLayerParser(object):
         self.log('Creating {0} tiles in {1} quadrants at zoom {2}.'.format(self.nr_of_tiles(zoom), len(quadrants), zoom))
 
         # Process quadrants in parallell
-        for indexrange in quadrants:
-            sync_to_async(self.process_quadrant(indexrange, zoom))
+        
+        [sync_to_async(self.process_quadrant(indexrange, zoom)) for indexrange in quadrants]
 
         # Store histogram data
         if zoom == self.max_zoom:
@@ -361,8 +360,8 @@ class RasterLayerParser(object):
             })
 
             # Create all tiles in this quadrant in batches
-            for tilex in range(indexrange[0], indexrange[2] + 1):
-                sync_to_async(self.write_tiles_to_db(indexrange, zoom, tilescale, snapped_dataset, tilex))
+            [sync_to_async(self.write_tiles_to_db(indexrange, zoom, tilescale, snapped_dataset, tilex)) for tilex in range(indexrange[0], indexrange[2] + 1)]
+
         finally:
             # Remove quadrant raster tempfile.
             snapped_dataset = None
