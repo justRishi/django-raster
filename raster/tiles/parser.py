@@ -20,6 +20,8 @@ from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerRepro
 from raster.tiles import utils
 from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
 from asgiref.sync import sync_to_async
+# from osgeo import gdal
+import asyncio
 
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
 
@@ -263,10 +265,16 @@ class RasterLayerParser(object):
         meta.max_zoom = max_zoom
         meta.save()
 
-        # Extract band metadata
-        [sync_to_async(self.extract_meta_from_band(i, band)) for i, band in enumerate(self.dataset.bands)]
-
+        asyncio.run(self.get_all_band_meta())
         self.log('Finished extracting metadata from raster.')
+
+    async def get_all_band_meta(self):
+        # Extract band metadata
+        tasks = []
+        for i, band in enumerate(self.dataset.bands):
+            task = asyncio.ensure_future(sync_to_async(self.extract_meta_from_band(i, band)))
+            tasks.append(task)
+        await asyncio.gather(*tasks, return_exceptions= True)
 
     def extract_meta_from_band(self, i, band):
         bandmeta = RasterLayerBandMetadata.objects.filter(rasterlayer=self.rasterlayer, band=i).first()
