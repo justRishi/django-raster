@@ -19,7 +19,7 @@ from raster.exceptions import RasterException
 from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerReprojected, RasterTile
 from raster.tiles import utils
 from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
-from asgiref.sync import sync_to_async
+from asgiref.sync import sync_to_async, async_to_sync
 # from osgeo import gdal
 import asyncio
 
@@ -265,18 +265,19 @@ class RasterLayerParser(object):
         meta.max_zoom = max_zoom
         meta.save()
 
-        asyncio.run(self.get_all_band_meta())
-        self.log('Finished extracting metadata from raster.')
+        return async_to_sync(self.get_all_band_meta())
+        
 
     async def get_all_band_meta(self):
         # Extract band metadata
-        tasks = []
-        for i, band in enumerate(self.dataset.bands):
-            task = asyncio.ensure_future(sync_to_async(self.extract_meta_from_band(i, band)))
-            tasks.append(task)
-        await asyncio.gather(*tasks, return_exceptions= True)
+        # tasks = []
+        # for i, band in enumerate(self.dataset.bands):
+        #     task = asyncio.ensure_future(self.extract_meta_from_band(i, band))
+        #     # tasks.append(task)
+        await asyncio.gather(*(self.extract_meta_from_band(i, band) for i, band in enumerate(self.dataset.bands) ), return_exceptions= True)
+        self.log('Finished extracting metadata from raster.')
 
-    def extract_meta_from_band(self, i, band):
+    async def extract_meta_from_band(self, i, band):
         bandmeta = RasterLayerBandMetadata.objects.filter(rasterlayer=self.rasterlayer, band=i).first()
         if not bandmeta:
             bandmeta = RasterLayerBandMetadata(rasterlayer=self.rasterlayer, band=i)
@@ -323,7 +324,7 @@ class RasterLayerParser(object):
 
         # Process quadrants in parallell
         
-        [sync_to_async(self.process_quadrant(indexrange, zoom)) for indexrange in quadrants]
+        [(self.process_quadrant(indexrange, zoom)) for indexrange in quadrants]
 
         # Store histogram data
         if zoom == self.max_zoom:
@@ -368,7 +369,7 @@ class RasterLayerParser(object):
             })
 
             # Create all tiles in this quadrant in batches
-            [sync_to_async(self.write_tiles_to_db(indexrange, zoom, tilescale, snapped_dataset, tilex)) for tilex in range(indexrange[0], indexrange[2] + 1)]
+            [(self.write_tiles_to_db(indexrange, zoom, tilescale, snapped_dataset, tilex)) for tilex in range(indexrange[0], indexrange[2] + 1)]
 
         finally:
             # Remove quadrant raster tempfile.
