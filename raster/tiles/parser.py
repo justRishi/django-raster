@@ -265,19 +265,21 @@ class RasterLayerParser(object):
         meta.max_zoom = max_zoom
         meta.save()
 
-        return async_to_sync(self.get_all_band_meta())
-        
 
+        asyncio.run(self.get_all_band_meta())
+        self.log('Finished extracting metadata from raster.')        
+
+    
     async def get_all_band_meta(self):
         # Extract band metadata
-        # tasks = []
-        # for i, band in enumerate(self.dataset.bands):
-        #     task = asyncio.ensure_future(self.extract_meta_from_band(i, band))
-        #     # tasks.append(task)
-        await asyncio.gather(*(self.extract_meta_from_band(i, band) for i, band in enumerate(self.dataset.bands) ), return_exceptions= True)
-        self.log('Finished extracting metadata from raster.')
+        tasks = []
+        for i, band in enumerate(self.dataset.bands):
+            tasks.append(self.extract_meta_from_band(i, band))
+        await asyncio.gather(*tasks)
+        # self.log('Finished extracting metadata from raster.')
 
-    async def extract_meta_from_band(self, i, band):
+    @sync_to_async
+    def extract_meta_from_band(self, i, band):
         bandmeta = RasterLayerBandMetadata.objects.filter(rasterlayer=self.rasterlayer, band=i).first()
         if not bandmeta:
             bandmeta = RasterLayerBandMetadata(rasterlayer=self.rasterlayer, band=i)
@@ -292,6 +294,7 @@ class RasterLayerParser(object):
             bandmeta.mean = band.mean
         bandmeta.save()
         self.log('Finished extracting meta for band {0}.'.format(bandmeta.band))
+        return True
 
     def create_tiles(self, zoom_levels):
         """
@@ -369,13 +372,26 @@ class RasterLayerParser(object):
             })
 
             # Create all tiles in this quadrant in batches
-            [(self.write_tiles_to_db(indexrange, zoom, tilescale, snapped_dataset, tilex)) for tilex in range(indexrange[0], indexrange[2] + 1)]
-
+            # tasks = []
+            # for tilex in range(indexrange[0], indexrange[2] + 1):
+            #     tasks.append(self.write_tiles_to_db(indexrange, zoom, tilescale, snapped_dataset, tilex))
+            #     await asyncio.gather(*tasks)
+            
+           
+            asyncio.run(self.run_write_tiles_asnc(indexrange, zoom, tilescale, snapped_dataset))
+    
         finally:
             # Remove quadrant raster tempfile.
             snapped_dataset = None
             os.remove(dest_file_name)
 
+    async def run_write_tiles_asnc(self, indexrange, zoom, tilescale, snapped_dataset):
+        tasks = []
+        for tilex in range(indexrange[0], indexrange[2] + 1):
+            tasks.append(self.write_tiles_to_db(indexrange, zoom, tilescale, snapped_dataset, tilex))
+        await asyncio.gather(*tasks)
+            
+    @sync_to_async
     def write_tiles_to_db(self, indexrange, zoom, tilescale, snapped_dataset,tilex):
         batch = []
         for tiley in range(indexrange[1], indexrange[3] + 1):
