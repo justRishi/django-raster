@@ -19,9 +19,10 @@ from raster.exceptions import RasterException
 from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerReprojected, RasterTile
 from raster.tiles import utils
 from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
-from asgiref.sync import sync_to_async, async_to_sync
+from asgiref.sync import sync_to_async
 # from osgeo import gdal
 import asyncio
+import multiprocessing
 
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
 
@@ -268,20 +269,10 @@ class RasterLayerParser(object):
         meta.max_zoom = max_zoom
         meta.save()
 
-
-        asyncio.run(self.get_all_band_meta())
+        [self.extract_meta_from_band(i, band) for i, band in enumerate(self.dataset.bands)]
         self.log('Finished extracting metadata from raster.')        
 
-    
-    async def get_all_band_meta(self):
-        # Extract band metadata
-        tasks = []
-        for i, band in enumerate(self.dataset.bands):
-            tasks.append(self.extract_meta_from_band(i, band))
-        await asyncio.gather(*tasks)
-        # self.log('Finished extracting metadata from raster.')
 
-    @sync_to_async
     def extract_meta_from_band(self, i, band):
         bandmeta = RasterLayerBandMetadata.objects.filter(rasterlayer=self.rasterlayer, band=i).first()
         if not bandmeta:
@@ -296,8 +287,7 @@ class RasterLayerParser(object):
         if hasattr(band, 'mean'):
             bandmeta.mean = band.mean
         bandmeta.save()
-        self.log('Finished extracting meta for band {0}.'.format(bandmeta.band))
-        return True
+        # self.log('Finished extracting meta for band {0}.'.format(bandmeta.band))
 
     def create_tiles(self, zoom_levels):
         """
