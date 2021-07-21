@@ -188,11 +188,13 @@ class RasterLayerParser(object):
                 status=self.rasterlayer.parsestatus.REPROJECTING_RASTER,
             )
 
-        # Reproject the dataset.
-        self.dataset = self.dataset.transform(
-            WEB_MERCATOR_SRID,
-            driver=INTERMEDIATE_RASTER_FORMAT,
-        )
+            # Reproject the dataset.
+            self.dataset = self.dataset.transform(
+                WEB_MERCATOR_SRID,
+                driver=INTERMEDIATE_RASTER_FORMAT,
+                max_error=1,
+                resampling='NearestNeighbour'
+            )
 
         # Manually override nodata value if neccessary
         if self.rasterlayer.nodata not in ('', None):
