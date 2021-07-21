@@ -196,6 +196,7 @@ class RasterLayerParser(object):
                 resampling='NearestNeighbour'
             )
 
+
         # Manually override nodata value if neccessary
         if self.rasterlayer.nodata not in ('', None):
             self.log(
