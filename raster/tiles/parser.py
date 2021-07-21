@@ -287,7 +287,7 @@ class RasterLayerParser(object):
         if hasattr(band, 'mean'):
             bandmeta.mean = band.mean
         bandmeta.save()
-        # self.log('Finished extracting meta for band {0}.'.format(bandmeta.band))
+        self.log('Finished extracting metadata for band {0}.'.format(bandmeta.band))
 
     def create_tiles(self, zoom_levels):
         """
