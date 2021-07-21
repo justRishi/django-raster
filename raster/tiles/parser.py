@@ -192,7 +192,7 @@ class RasterLayerParser(object):
             self.dataset = self.dataset.transform(
                 WEB_MERCATOR_SRID,
                 driver=INTERMEDIATE_RASTER_FORMAT,
-                max_error=1,
+                max_error=0.0,
                 resampling='NearestNeighbour'
             )
 
