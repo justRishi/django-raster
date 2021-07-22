@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from urllib.request import urlretrieve
 
 import boto3
+from celery.app import shared_task
 import numpy
 
 from django.conf import settings
@@ -22,7 +23,9 @@ from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_
 from asgiref.sync import sync_to_async
 # from osgeo import gdal
 import asyncio
-import multiprocessing
+from celery import group
+import billiard as multiprocessing
+
 
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
 
@@ -335,6 +338,7 @@ class RasterLayerParser(object):
         self.log('Finished parsing at zoom level {0}.'.format(zoom), zoom=zoom)
 
     _quadrant_count = 0
+    snapped_dataset = None
 
     def process_quadrant(self, indexrange, zoom):
         """
@@ -359,7 +363,7 @@ class RasterLayerParser(object):
             dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
 
             # Snap dataset to the quadrant
-            snapped_dataset = self.dataset.warp({
+            self.snapped_dataset = self.dataset.warp({
                 'name': dest_file_name,
                 'origin': [bounds[0], bounds[3]],
                 'scale': [tilescale, -tilescale],
@@ -374,22 +378,30 @@ class RasterLayerParser(object):
             #     await asyncio.gather(*tasks)
             
            
-            asyncio.run(self.run_write_tiles_asnc(indexrange, zoom, tilescale, snapped_dataset))
+            self.run_write_tiles(indexrange, zoom, tilescale)
     
         finally:
             # Remove quadrant raster tempfile.
-            snapped_dataset = None
+            self.snapped_dataset = None
             os.remove(dest_file_name)
 
-    async def run_write_tiles_asnc(self, indexrange, zoom, tilescale, snapped_dataset):
-        tasks = []
-        for tilex in range(indexrange[0], indexrange[2] + 1):
-            tasks.append(self.write_tiles_to_db(indexrange, zoom, tilescale, snapped_dataset, tilex))
-        await asyncio.gather(*tasks)
-            
+    batch = []
+    def run_write_tiles(self, indexrange, zoom, tilescale):
+        # tasks = []
+        # for tilex in range(indexrange[0], indexrange[2] + 1):
+
+        # multi processor not working
+        # with multiprocessing.Pool(processes=2) as pool:
+        #     pool.starmap(self.write_tiles_to_db, [(indexrange, zoom, tilescale, snapped_dataset, tilex)  for tilex in range(indexrange[0], indexrange[2] + 1)]) 
+
+        group(self.write_tiles_to_db.s(indexrange, zoom, tilescale, tilex) for tilex in range(indexrange[0], indexrange[2] + 1)).apply_async()
+
+        if len(self.batch):
+            RasterTile.objects.bulk_create(self.batch, self.batch_step_size)
+            self.batch = []
+
     @sync_to_async
-    def write_tiles_to_db(self, indexrange, zoom, tilescale, snapped_dataset,tilex):
-        batch = []
+    def write_tiles_to_db(self, indexrange, zoom, tilescale,tilex):
         for tiley in range(indexrange[1], indexrange[3] + 1):
                     # Calculate raster tile origin
             bounds = utils.tile_bounds(tilex, tiley, zoom)
@@ -404,7 +416,7 @@ class RasterLayerParser(object):
                         {
                             'data': band.data(offset=pixeloffset, size=(self.tilesize, self.tilesize)),
                             'nodata_value': band.nodata_value
-                        } for band in snapped_dataset.bands
+                        } for band in self.snapped_dataset.bands
                     ]
 
                     # Ignore tile if its only nodata.
@@ -422,12 +434,12 @@ class RasterLayerParser(object):
                         'origin': [bounds[0], bounds[3]],
                         'scale': [tilescale, -tilescale],
                         'srid': WEB_MERCATOR_SRID,
-                        'datatype': snapped_dataset.bands[0].datatype(),
+                        'datatype': self.snapped_dataset.bands[0].datatype(),
                         'bands': band_data,
                     })
 
                     # Store tile in batch array
-            batch.append(
+            self.batch.append(
                         RasterTile(
                             rast=dest,
                             rasterlayer_id=self.rasterlayer.id,
@@ -438,9 +450,6 @@ class RasterLayerParser(object):
                     )
 
             # Commit batch to database and reset it
-        if len(batch):
-            RasterTile.objects.bulk_create(batch, self.batch_step_size)
-            # self.log('written tiles {0}  at zoom {1} to db.'.format(len(batch),  zoom))
 
     def push_histogram(self, data):
         """
