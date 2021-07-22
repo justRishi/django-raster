@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 from urllib.request import urlretrieve
 
 import boto3
-from celery.app import shared_task
 import numpy
 
 from django.conf import settings
@@ -20,10 +19,8 @@ from raster.exceptions import RasterException
 from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerReprojected, RasterTile
 from raster.tiles import utils
 from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
-from asgiref.sync import sync_to_async
 # from osgeo import gdal
-import asyncio
-from celery import group
+from celery import app, group
 import billiard as multiprocessing
 
 
@@ -377,31 +374,17 @@ class RasterLayerParser(object):
             #     tasks.append(self.write_tiles_to_db(indexrange, zoom, tilescale, snapped_dataset, tilex))
             #     await asyncio.gather(*tasks)
             
-           
-            self.run_write_tiles(indexrange, zoom, tilescale)
+            group(self.write_tiles_to_db.s(indexrange, zoom, tilescale, tilex) for tilex in range(indexrange[0], indexrange[2] + 1)).apply_async()
     
         finally:
             # Remove quadrant raster tempfile.
             self.snapped_dataset = None
             os.remove(dest_file_name)
 
-    batch = []
-    def run_write_tiles(self, indexrange, zoom, tilescale):
-        # tasks = []
-        # for tilex in range(indexrange[0], indexrange[2] + 1):
-
-        # multi processor not working
-        # with multiprocessing.Pool(processes=2) as pool:
-        #     pool.starmap(self.write_tiles_to_db, [(indexrange, zoom, tilescale, snapped_dataset, tilex)  for tilex in range(indexrange[0], indexrange[2] + 1)]) 
-
-        group(self.write_tiles_to_db.s(indexrange, zoom, tilescale, tilex) for tilex in range(indexrange[0], indexrange[2] + 1)).apply_async()
-
-        if len(self.batch):
-            RasterTile.objects.bulk_create(self.batch, self.batch_step_size)
-            self.batch = []
-
-    @shared_task(bind=True)
+    # @app.shared_task
+    @app.tasks(bind=True)
     def write_tiles_to_db(self, indexrange, zoom, tilescale,tilex):
+        batch = []
         for tiley in range(indexrange[1], indexrange[3] + 1):
                     # Calculate raster tile origin
             bounds = utils.tile_bounds(tilex, tiley, zoom)
@@ -439,7 +422,7 @@ class RasterLayerParser(object):
                     })
 
                     # Store tile in batch array
-            self.batch.append(
+            batch.append(
                         RasterTile(
                             rast=dest,
                             rasterlayer_id=self.rasterlayer.id,
@@ -450,6 +433,10 @@ class RasterLayerParser(object):
                     )
 
             # Commit batch to database and reset it
+            
+        if len(batch):
+            RasterTile.objects.bulk_create(batch, self.batch_step_size)
+            batch = []
 
     def push_histogram(self, data):
         """
