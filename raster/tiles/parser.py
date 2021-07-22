@@ -400,7 +400,7 @@ class RasterLayerParser(object):
             RasterTile.objects.bulk_create(self.batch, self.batch_step_size)
             self.batch = []
 
-    @sync_to_async
+    @shared_task(bind=True)
     def write_tiles_to_db(self, indexrange, zoom, tilescale,tilex):
         for tiley in range(indexrange[1], indexrange[3] + 1):
                     # Calculate raster tile origin
