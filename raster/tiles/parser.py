@@ -378,7 +378,7 @@ class RasterLayerParser(object):
             self.snapped_dataset = None
             os.remove(dest_file_name)
 
-    async def write_tiles_async(self,indexrange, zoom, tilescale,tilex):
+    async def write_tiles_async(self,indexrange, zoom, tilescale):
         tasks = []
         for tilex in range(indexrange[0], indexrange[2] + 1):
             tasks.append(self.write_tiles_to_db(indexrange, zoom, tilescale, tilex))
