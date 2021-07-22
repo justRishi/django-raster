@@ -125,11 +125,12 @@ class RasterLayerParser(object):
         # open the source file directly.
         if os.path.splitext(filepath)[1].lower() == '.zip':
             # Open and extract zipfile
-            zf = zipfile.ZipFile(filepath)
-            zf.extractall(self.tmpdir)
-
+            try:
+                zf = zipfile.ZipFile(filepath)
+                zf.extractall(self.tmpdir)
+            finally:
             # Remove zipfile
-            os.remove(filepath)
+                os.remove(filepath)
 
             # Get filelist from directory
             matches = []
@@ -209,23 +210,25 @@ class RasterLayerParser(object):
 
         # Compress reprojected raster file and store it
         if self.rasterlayer.store_reprojected:
-            dest = tempfile.NamedTemporaryFile(dir=self.tmpdir, suffix='.zip', delete=False)
-            dest.close()
-            dest_zip = zipfile.ZipFile(dest.name, 'w', allowZip64=True)
-            dest_zip.write(
-                filename=self.dataset.name,
-                arcname=os.path.basename(self.dataset.name),
-                compress_type=zipfile.ZIP_DEFLATED,
-            )
-            dest_zip.close()
-            # Store zip file in reprojected raster model
-            self.rasterlayer.reprojected.rasterfile = File(
-                open(dest.name, 'rb'),
-                name=os.path.basename(dest_zip.filename)
-            )
-            self.rasterlayer.reprojected.save()
+            try:
+                dest = tempfile.NamedTemporaryFile(dir=self.tmpdir, suffix='.zip', delete=False)
+                dest.close()
+                dest_zip = zipfile.ZipFile(dest.name, 'w', allowZip64=True)
+                dest_zip.write(
+                    filename=self.dataset.name,
+                    arcname=os.path.basename(self.dataset.name),
+                    compress_type=zipfile.ZIP_DEFLATED,
+                )
+                dest_zip.close()
+                # Store zip file in reprojected raster model
+                self.rasterlayer.reprojected.rasterfile = File(
+                    open(dest.name, 'rb'),
+                    name=os.path.basename(dest_zip.filename)
+                )
+                self.rasterlayer.reprojected.save()
             # Remove tmp file
-            os.unlink(dest.name)
+            finally:
+                os.unlink(dest.name)
 
         self.log('Finished transforming raster.')
 

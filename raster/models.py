@@ -148,7 +148,7 @@ class RasterLayer(models.Model, ValueCountMixin):
                   'zoomlevel as max zoom? If unchecked, the next-lower zoom level '
                   'is used. This flag is ignored if the max_zoom is manually '
                   'specified.')
-    store_reprojected = models.BooleanField(default=True,
+    store_reprojected = models.BooleanField(default=False,
         help_text='Should the reprojected raster be stored? If unchecked, the '
                   'reprojected version of the raster is not stored.')
     legend = models.ForeignKey(Legend, blank=True, null=True, on_delete=models.CASCADE)
