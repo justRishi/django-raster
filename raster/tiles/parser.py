@@ -369,7 +369,7 @@ class RasterLayerParser(object):
 
             # Create all tiles in this quadrant in batches
            
-            async_to_sync(self.write_tiles_async(indexrange, zoom, tilescale))
+            asyncio.run(self.write_tiles_async(indexrange, zoom, tilescale))
             
         finally:
             # Remove quadrant raster tempfile.
