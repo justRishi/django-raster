@@ -6,7 +6,7 @@ import uuid
 import zipfile
 from urllib.parse import urlparse
 from urllib.request import urlretrieve
-from asgiref.sync import sync_to_async
+from asgiref.sync import sync_to_async, async_to_sync
 
 import boto3
 from celery.app import shared_task
@@ -24,9 +24,7 @@ from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_
 # from osgeo import gdal
 import asyncio
 
-
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
-
 
 
 class RasterLayerParser(object):
@@ -371,7 +369,7 @@ class RasterLayerParser(object):
 
             # Create all tiles in this quadrant in batches
            
-            asyncio.run(self.write_tiles_async(indexrange, zoom, tilescale))
+            async_to_sync(self.write_tiles_async(indexrange, zoom, tilescale))
             
         finally:
             # Remove quadrant raster tempfile.
