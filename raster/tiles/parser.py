@@ -163,6 +163,7 @@ class RasterLayerParser(object):
                 )
             self.dataset.srs = self.rasterlayer.srid
 
+    
     def reproject_rasterfile(self):
         """
         Reproject the rasterfile into web mercator.
@@ -189,13 +190,13 @@ class RasterLayerParser(object):
                 status=self.rasterlayer.parsestatus.REPROJECTING_RASTER,
             )
 
-            # Reproject the dataset.
-            self.dataset = self.dataset.transform(
-                WEB_MERCATOR_SRID,
-                driver=INTERMEDIATE_RASTER_FORMAT,
-                max_error=0.0,
-                resampling='NearestNeighbour'
-            )
+        # Reproject the dataset.
+        self.dataset = self.dataset.transform(
+            WEB_MERCATOR_SRID,
+            driver=INTERMEDIATE_RASTER_FORMAT,
+            max_error=0.0,
+            resampling='NearestNeighbour'
+        )
 
 
         # Manually override nodata value if neccessary
