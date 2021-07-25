@@ -6,10 +6,9 @@ import uuid
 import zipfile
 from urllib.parse import urlparse
 from urllib.request import urlretrieve
-from asgiref.sync import sync_to_async, async_to_sync
+# from asgiref.sync import sync_to_async, async_to_sync
 
 import boto3
-from celery.app import shared_task
 import numpy
 
 from django.conf import settings
@@ -21,8 +20,6 @@ from raster.exceptions import RasterException
 from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerReprojected, RasterTile
 from raster.tiles import utils
 from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
-# from osgeo import gdal
-import asyncio
 
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
 
@@ -194,7 +191,7 @@ class RasterLayerParser(object):
         self.dataset = self.dataset.transform(
             WEB_MERCATOR_SRID,
             driver=INTERMEDIATE_RASTER_FORMAT,
-            max_error=0.0,
+            max_error=0.001,
             resampling='NearestNeighbour'
         )
 
@@ -369,21 +366,15 @@ class RasterLayerParser(object):
             })
 
             # Create all tiles in this quadrant in batches
-           
-            asyncio.run(self.write_tiles_async(indexrange, zoom, tilescale))
+
+            [self.write_tiles_to_db(indexrange, zoom, tilescale, tilex) for tilex in range(indexrange[0], indexrange[2] + 1)]
             
         finally:
             # Remove quadrant raster tempfile.
             self.snapped_dataset = None
             os.remove(dest_file_name)
 
-    async def write_tiles_async(self,indexrange, zoom, tilescale):
-        tasks = []
-        for tilex in range(indexrange[0], indexrange[2] + 1):
-            tasks.append(self.write_tiles_to_db(indexrange, zoom, tilescale, tilex))
-        await asyncio.gather(*tasks)
 
-    @sync_to_async
     def write_tiles_to_db(self, indexrange, zoom, tilescale,tilex):
         batch = []
         for tiley in range(indexrange[1], indexrange[3] + 1):

@@ -15,7 +15,6 @@ from raster.mixins import ValueCountMixin
 from raster.tiles.const import WEB_MERCATOR_SRID
 from raster.utils import hex_to_rgba
 
-
 class LegendSemantics(models.Model):
     """
     Labels for pixel types (urban, forest, warm, cold, etc)
@@ -148,7 +147,7 @@ class RasterLayer(models.Model, ValueCountMixin):
                   'zoomlevel as max zoom? If unchecked, the next-lower zoom level '
                   'is used. This flag is ignored if the max_zoom is manually '
                   'specified.')
-    store_reprojected = models.BooleanField(default=False,
+    store_reprojected = models.BooleanField(default=True,
         help_text='Should the reprojected raster be stored? If unchecked, the '
                   'reprojected version of the raster is not stored.')
     legend = models.ForeignKey(Legend, blank=True, null=True, on_delete=models.CASCADE)
@@ -246,7 +245,9 @@ class RasterLayerReprojected(models.Model):
     Stores reprojected version of raster.
     """
     rasterlayer = models.OneToOneField(RasterLayer, related_name='reprojected', on_delete=models.CASCADE)
-    rasterfile = models.FileField(upload_to='rasters/reprojected', null=True, blank=True)
+    # change reprojected to /tmp as I do not want it to be stored for long but for big files storing is necesary to get the file processed Rishi
+    # in cloud /tmp is not on permenant storage so will disappear automatic after a container restart.
+    rasterfile = models.FileField(upload_to='/tmp/rasters/reprojected', null=True, blank=True)
 
     def __str__(self):
         return self.rasterlayer.name
