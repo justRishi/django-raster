@@ -206,26 +206,26 @@ class RasterLayerParser(object):
                 band.nodata_value = float(self.rasterlayer.nodata)
 
         # Compress reprojected raster file and store it
-        if self.rasterlayer.store_reprojected:
-            try:
-                dest = tempfile.NamedTemporaryFile(dir=self.tmpdir, suffix='.zip', delete=False)
-                dest.close()
-                dest_zip = zipfile.ZipFile(dest.name, 'w', allowZip64=True)
-                dest_zip.write(
-                    filename=self.dataset.name,
-                    arcname=os.path.basename(self.dataset.name),
-                    compress_type=zipfile.ZIP_DEFLATED,
-                )
-                dest_zip.close()
-                # Store zip file in reprojected raster model
-                self.rasterlayer.reprojected.rasterfile = File(
-                    open(dest.name, 'rb'),
-                    name=os.path.basename(dest_zip.filename)
-                )
-                self.rasterlayer.reprojected.save()
-            # Remove tmp file
-            finally:
-                os.unlink(dest.name)
+        # if self.rasterlayer.store_reprojected:
+        #     try:
+        #         dest = tempfile.NamedTemporaryFile(dir=self.tmpdir, suffix='.zip', delete=False)
+        #         dest.close()
+        #         dest_zip = zipfile.ZipFile(dest.name, 'w', allowZip64=True)
+        #         dest_zip.write(
+        #             filename=self.dataset.name,
+        #             arcname=os.path.basename(self.dataset.name),
+        #             compress_type=zipfile.ZIP_DEFLATED,
+        #         )
+        #         dest_zip.close()
+        #         # Store zip file in reprojected raster model
+        #         self.rasterlayer.reprojected.rasterfile = File(
+        #             open(dest.name, 'rb'),
+        #             name=os.path.basename(dest_zip.filename)
+        #         )
+        #         self.rasterlayer.reprojected.save()
+        #     # Remove tmp file
+        #     finally:
+        #         os.unlink(dest.name)
 
         self.log('Finished transforming raster.')
 
