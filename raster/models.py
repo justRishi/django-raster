@@ -247,7 +247,7 @@ class RasterLayerReprojected(models.Model):
     rasterlayer = models.OneToOneField(RasterLayer, related_name='reprojected', on_delete=models.CASCADE)
     # change reprojected to /tmp as I do not want it to be stored for long but for big files storing is necesary to get the file processed Rishi
     # in cloud /tmp is not on permenant storage so will disappear automatic after a container restart.
-    rasterfile = models.FileField(upload_to='/tmp/rasters/reprojected', null=True, blank=True)
+    rasterfile = models.FileField(upload_to='../tmp/rasters/reprojected', null=True, blank=True)
 
     def __str__(self):
         return self.rasterlayer.name
