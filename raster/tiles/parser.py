@@ -6,7 +6,6 @@ import uuid
 import zipfile
 from urllib.parse import urlparse
 from urllib.request import urlretrieve
-# from asgiref.sync import sync_to_async, async_to_sync
 
 import boto3
 import numpy
