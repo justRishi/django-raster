@@ -120,12 +120,11 @@ class RasterLayerParser(object):
         # open the source file directly.
         if os.path.splitext(filepath)[1].lower() == '.zip':
             # Open and extract zipfile
-            try:
-                zf = zipfile.ZipFile(filepath)
-                zf.extractall(self.tmpdir)
-            finally:
+
+            zf = zipfile.ZipFile(filepath)
+            zf.extractall(self.tmpdir)
             # Remove zipfile
-                os.remove(filepath)
+            os.remove(filepath)
 
             # Get filelist from directory
             matches = []
@@ -206,25 +205,23 @@ class RasterLayerParser(object):
 
         # Compress reprojected raster file and store it
         if self.rasterlayer.store_reprojected:
-            try:
-                dest = tempfile.NamedTemporaryFile(dir=self.tmpdir, suffix='.zip', delete=False)
-                dest.close()
-                dest_zip = zipfile.ZipFile(dest.name, 'w', allowZip64=True)
-                dest_zip.write(
-                    filename=self.dataset.name,
-                    arcname=os.path.basename(self.dataset.name),
-                    compress_type=zipfile.ZIP_DEFLATED,
-                )
-                dest_zip.close()
-                # Store zip file in reprojected raster model
-                self.rasterlayer.reprojected.rasterfile = File(
-                    open(dest.name, 'rb'),
-                    name=os.path.basename(dest_zip.filename)
-                )
-                self.rasterlayer.reprojected.save()
+            dest = tempfile.NamedTemporaryFile(dir=self.tmpdir, suffix='.zip', delete=False)
+            dest.close()
+            dest_zip = zipfile.ZipFile(dest.name, 'w', allowZip64=True)
+            dest_zip.write(
+                filename=self.dataset.name,
+                arcname=os.path.basename(self.dataset.name),
+                compress_type=zipfile.ZIP_DEFLATED,
+            )
+            dest_zip.close()
+            # Store zip file in reprojected raster model
+            self.rasterlayer.reprojected.rasterfile = File(
+                open(dest.name, 'rb'),
+                name=os.path.basename(dest_zip.filename)
+            )
+            self.rasterlayer.reprojected.save()
             # Remove tmp file
-            finally:
-                os.unlink(dest.name)
+            os.unlink(dest.name)
 
         self.log('Finished transforming raster.')
 
@@ -352,26 +349,24 @@ class RasterLayerParser(object):
         # Compute quadrant bounds and create destination file
         bounds = utils.tile_bounds(indexrange[0], indexrange[1], zoom)
 
-        try:
-            dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
+        dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
 
-            # Snap dataset to the quadrant
-            self.snapped_dataset = self.dataset.warp({
-                'name': dest_file_name,
-                'origin': [bounds[0], bounds[3]],
-                'scale': [tilescale, -tilescale],
-                'width': (indexrange[2] - indexrange[0] + 1) * self.tilesize,
-                'height': (indexrange[3] - indexrange[1] + 1) * self.tilesize,
-            })
+        # Snap dataset to the quadrant
+        self.snapped_dataset = self.dataset.warp({
+            'name': dest_file_name,
+            'origin': [bounds[0], bounds[3]],
+            'scale': [tilescale, -tilescale],
+            'width': (indexrange[2] - indexrange[0] + 1) * self.tilesize,
+            'height': (indexrange[3] - indexrange[1] + 1) * self.tilesize,
+        })
 
-            # Create all tiles in this quadrant in batches
+        # Create all tiles in this quadrant in batches
 
-            [self.write_tiles_to_db(indexrange, zoom, tilescale, tilex) for tilex in range(indexrange[0], indexrange[2] + 1)]
-            
-        finally:
-            # Remove quadrant raster tempfile.
-            self.snapped_dataset = None
-            os.remove(dest_file_name)
+        [self.write_tiles_to_db(indexrange, zoom, tilescale, tilex) for tilex in range(indexrange[0], indexrange[2] + 1)]
+        
+        # Remove quadrant raster tempfile.
+        self.snapped_dataset = None
+        os.remove(dest_file_name)
 
 
     def write_tiles_to_db(self, indexrange, zoom, tilescale,tilex):

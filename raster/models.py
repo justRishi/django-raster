@@ -1,4 +1,3 @@
-
 import json
 import math
 from operator import itemgetter
@@ -15,7 +14,7 @@ from django.dispatch import receiver
 from raster.mixins import ValueCountMixin
 from raster.tiles.const import WEB_MERCATOR_SRID
 from raster.utils import hex_to_rgba
-from pathlib import Path
+
 
 class LegendSemantics(models.Model):
     """
@@ -247,8 +246,6 @@ class RasterLayerReprojected(models.Model):
     Stores reprojected version of raster.
     """
     rasterlayer = models.OneToOneField(RasterLayer, related_name='reprojected', on_delete=models.CASCADE)
-    # change reprojected to /tmp as I do not want it to be stored for long but for big files storing is necesary to get the file processed Rishi
-    # in cloud /tmp is not on permenant storage so will disappear automatic after a container restart.
     rasterfile = models.FileField(upload_to='rasters/reprojected', null=True, blank=True)
 
     def __str__(self):
