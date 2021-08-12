@@ -7,6 +7,9 @@ import zipfile
 from urllib.parse import urlparse
 from urllib.request import urlretrieve
 
+from asgiref.sync import sync_to_async, async_to_sync
+import asyncio
+
 import boto3
 import numpy
 
@@ -19,6 +22,8 @@ from raster.exceptions import RasterException
 from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerReprojected, RasterTile
 from raster.tiles import utils
 from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
+from multiprocessing import cpu_count
+from billiard  import Pool
 
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
 
@@ -265,11 +270,20 @@ class RasterLayerParser(object):
         meta.max_zoom = max_zoom
         meta.save()
 
+        # print(cpu_count())
+
+        # band_extract_params = []
+        # for i, band in enumerate(self.dataset.bands):
+        #     band_extract_params.append((i,band))
+        # with Pool(cpu_count()) as p:
+        #     p.starmap(self.extract_meta_from_band,band_extract_params )
+            
         [self.extract_meta_from_band(i, band) for i, band in enumerate(self.dataset.bands)]
         self.log('Finished extracting metadata from raster.')        
 
 
     def extract_meta_from_band(self, i, band):
+        print('hola')
         bandmeta = RasterLayerBandMetadata.objects.filter(rasterlayer=self.rasterlayer, band=i).first()
         if not bandmeta:
             bandmeta = RasterLayerBandMetadata(rasterlayer=self.rasterlayer, band=i)
@@ -362,17 +376,25 @@ class RasterLayerParser(object):
 
         # Create all tiles in this quadrant in batches
 
-        [self.write_tiles_to_db(indexrange, zoom, tilescale, tilex) for tilex in range(indexrange[0], indexrange[2] + 1)]
-        
+        asyncio.run(self.write_tiles_async(indexrange, zoom, tilescale))
+            
         # Remove quadrant raster tempfile.
         self.snapped_dataset = None
         os.remove(dest_file_name)
 
+    async def write_tiles_async(self,indexrange, zoom, tilescale):
+        tasks = []
+        for tilex in range(indexrange[0], indexrange[2] + 1):
+            print("x = " + str(tilex))
+            tasks.append(self.write_tiles_to_db_async(indexrange, zoom, tilescale, tilex))
+        await asyncio.gather(*tasks)
 
-    def write_tiles_to_db(self, indexrange, zoom, tilescale,tilex):
+
+    @sync_to_async
+    def write_tiles_to_db_async(self, indexrange, zoom, tilescale,tilex):
         batch = []
         for tiley in range(indexrange[1], indexrange[3] + 1):
-                    # Calculate raster tile origin
+            print("y = " + str(tiley))
             bounds = utils.tile_bounds(tilex, tiley, zoom)
 
                     # Construct band data arrays
@@ -390,7 +412,7 @@ class RasterLayerParser(object):
 
                     # Ignore tile if its only nodata.
             if all([numpy.all(dat['data'] == dat['nodata_value']) for dat in band_data]):
-                continue
+                return
 
                     # Add tile data to histogram
             if zoom == self.max_zoom:
@@ -418,11 +440,11 @@ class RasterLayerParser(object):
                         )
                     )
 
-            # Commit batch to database and reset it
-            
         if len(batch):
             RasterTile.objects.bulk_create(batch, self.batch_step_size)
-            batch = []
+            batch = []    
+            # Commit batch to database and reset it  
+
 
     def push_histogram(self, data):
         """
@@ -506,3 +528,5 @@ class RasterLayerParser(object):
         bbox = self.dataset.extent
         indexrange = utils.tile_index_range(bbox, zoom)
         return (indexrange[2] - indexrange[0] + 1) * (indexrange[3] - indexrange[1] + 1)
+
+#meta multi
