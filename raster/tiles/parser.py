@@ -23,7 +23,7 @@ from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerRepro
 from raster.tiles import utils
 from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
 from multiprocessing import cpu_count
-# from billiard  import Pool
+from billiard  import Pool
 
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
 
@@ -272,11 +272,11 @@ class RasterLayerParser(object):
 
         print(cpu_count())
 
-        # band_extract_params = []
-        # for i, band in enumerate(self.dataset.bands):
-        #     band_extract_params.append((i,band))
-        # with Pool(cpu_count()) as p:
-        #     p.starmap(self.extract_meta_from_band,band_extract_params )
+        band_extract_params = []
+        for i, band in enumerate(self.dataset.bands):
+            band_extract_params.append((i,band))
+        with Pool(2) as p:
+            p.starmap(self.extract_meta_from_band,band_extract_params )
             
         [self.extract_meta_from_band(i, band) for i, band in enumerate(self.dataset.bands)]
         self.log('Finished extracting metadata from raster.')        
@@ -439,8 +439,8 @@ class RasterLayerParser(object):
                     )
 
         if len(batch):
-            print("batch written: " )
             RasterTile.objects.bulk_create(batch, self.batch_step_size)
+            print("batch written: " + str(len(batch)))
             batch = []    
             # Commit batch to database and reset it  
 
