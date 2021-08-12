@@ -270,13 +270,13 @@ class RasterLayerParser(object):
         meta.max_zoom = max_zoom
         meta.save()
 
-        print(cpu_count())
+        print("cpu's = " + str(cpu_count()))
 
-        band_extract_params = []
-        for i, band in enumerate(self.dataset.bands):
-            band_extract_params.append((i,band))
-        with Pool(2) as p:
-            p.starmap(self.extract_meta_from_band,band_extract_params )
+        # band_extract_params = []
+        # for i, band in enumerate(self.dataset.bands):
+        #     band_extract_params.append((i,band))
+        # with Pool(2) as p:
+        #     p.starmap(self.extract_meta_from_band,band_extract_params )
             
         [self.extract_meta_from_band(i, band) for i, band in enumerate(self.dataset.bands)]
         self.log('Finished extracting metadata from raster.')        
