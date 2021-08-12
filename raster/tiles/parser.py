@@ -23,7 +23,7 @@ from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerRepro
 from raster.tiles import utils
 from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
 from multiprocessing import cpu_count
-from billiard  import Pool
+# from billiard  import Pool
 
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
 
@@ -270,7 +270,7 @@ class RasterLayerParser(object):
         meta.max_zoom = max_zoom
         meta.save()
 
-        # print(cpu_count())
+        print(cpu_count())
 
         # band_extract_params = []
         # for i, band in enumerate(self.dataset.bands):
@@ -283,7 +283,6 @@ class RasterLayerParser(object):
 
 
     def extract_meta_from_band(self, i, band):
-        print('hola')
         bandmeta = RasterLayerBandMetadata.objects.filter(rasterlayer=self.rasterlayer, band=i).first()
         if not bandmeta:
             bandmeta = RasterLayerBandMetadata(rasterlayer=self.rasterlayer, band=i)
@@ -385,7 +384,6 @@ class RasterLayerParser(object):
     async def write_tiles_async(self,indexrange, zoom, tilescale):
         tasks = []
         for tilex in range(indexrange[0], indexrange[2] + 1):
-            print("x = " + str(tilex))
             tasks.append(self.write_tiles_to_db_async(indexrange, zoom, tilescale, tilex))
         await asyncio.gather(*tasks)
 
@@ -393,8 +391,8 @@ class RasterLayerParser(object):
     @sync_to_async
     def write_tiles_to_db_async(self, indexrange, zoom, tilescale,tilex):
         batch = []
+        print("x = " + str(tilex))
         for tiley in range(indexrange[1], indexrange[3] + 1):
-            print("y = " + str(tiley))
             bounds = utils.tile_bounds(tilex, tiley, zoom)
 
                     # Construct band data arrays
@@ -441,6 +439,7 @@ class RasterLayerParser(object):
                     )
 
         if len(batch):
+            print("batch written: " )
             RasterTile.objects.bulk_create(batch, self.batch_step_size)
             batch = []    
             # Commit batch to database and reset it  
