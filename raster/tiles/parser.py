@@ -194,7 +194,7 @@ class RasterLayerParser(object):
         self.dataset = self.dataset.transform(
             WEB_MERCATOR_SRID,
             driver=INTERMEDIATE_RASTER_FORMAT,
-            max_error=0.001,
+            max_error=0.0001,
             resampling='NearestNeighbour'
         )
 
@@ -391,7 +391,6 @@ class RasterLayerParser(object):
     @sync_to_async
     def write_tiles_to_db_async(self, indexrange, zoom, tilescale,tilex):
         batch = []
-        print("x = " + str(tilex))
         for tiley in range(indexrange[1], indexrange[3] + 1):
             bounds = utils.tile_bounds(tilex, tiley, zoom)
 
@@ -440,7 +439,6 @@ class RasterLayerParser(object):
 
         if len(batch):
             RasterTile.objects.bulk_create(batch, self.batch_step_size)
-            print("batch written: " + str(len(batch)))
             batch = []    
             # Commit batch to database and reset it  
 
