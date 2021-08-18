@@ -194,7 +194,7 @@ class RasterLayerParser(object):
         self.dataset = self.dataset.transform(
             WEB_MERCATOR_SRID,
             driver=INTERMEDIATE_RASTER_FORMAT,
-            max_error=0.0001,
+            max_error=0.001,
             resampling='NearestNeighbour'
         )
 
@@ -296,7 +296,8 @@ class RasterLayerParser(object):
         if hasattr(band, 'mean'):
             bandmeta.mean = band.mean
         bandmeta.save()
-        self.log('Finished extracting metadata for band {0}.'.format(bandmeta.band))
+        # self.log('Finished extracting metadata for band {0}.'.format(bandmeta.band))
+        print('Finished extracting metadata for band {0}.'.format(bandmeta.band))
 
     def create_tiles(self, zoom_levels):
         """
