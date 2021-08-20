@@ -5,6 +5,7 @@ IMG_ENHANCEMENTS = {
     'enhance_contrast': ImageEnhance.Contrast,
     'enhance_brightness': ImageEnhance.Brightness,
     'enhance_sharpness': ImageEnhance.Sharpness,
+    'll': ImageEnhance.
 }
 IMG_FORMATS = {'png': ('PNG', 'image/png'), 'jpg': ('JPEG', 'image/jpeg'), 'tif': ('TIFF', 'image/tiff')}
 EXPORT_MAX_PIXELS = 10000 * 10000
