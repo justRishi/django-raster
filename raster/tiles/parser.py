@@ -188,6 +188,8 @@ class RasterLayerParser(object):
         self.dataset = self.dataset.transform(
             WEB_MERCATOR_SRID,
             driver=INTERMEDIATE_RASTER_FORMAT,
+            max_error=0.001,
+            resampling='NearestNeighbour'
         )
 
         # Manually override nodata value if neccessary
@@ -403,9 +405,11 @@ class RasterLayerParser(object):
                 )
 
                 # Commit batch to database and reset it
-                if len(batch):
-                    RasterTile.objects.bulk_create(batch, self.batch_step_size)
-                    batch = []
+        if len(batch):
+            RasterTile.objects.bulk_create(batch, self.batch_step_size)
+            print("batch written: " + str(len(batch)))
+            print("{0}  ,batch# written: {1} for zoom: {2}".format(self.rasterlayer.id, len(batch), zoom))
+            batch = []
 
         # Remove quadrant raster tempfile.
         snapped_dataset = None
