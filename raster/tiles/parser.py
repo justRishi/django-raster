@@ -297,7 +297,8 @@ class RasterLayerParser(object):
             bandmeta.mean = band.mean
         bandmeta.save()
         # self.log('Finished extracting metadata for band {0}.'.format(bandmeta.band))
-        print('Finished extracting metadata for band {0}.'.format(bandmeta.band))
+        # print('Finished extracting metadata for band {0}.'.format(bandmeta.band))
+        print("{0}  ,Finished extracting metadata for band {1}".format(self.rasterlayer.id, bandmeta.band))
 
     def create_tiles(self, zoom_levels):
         """
@@ -440,7 +441,7 @@ class RasterLayerParser(object):
 
         if len(batch):
             RasterTile.objects.bulk_create(batch, self.batch_step_size)
-            print("batch written: " + str(len(batch)))
+            print("{0}, batch# written: {1} for zoom: {2}".format(self.rasterlayer.id, len(batch), zoom))
             batch = []    
             # Commit batch to database and reset it  
 
