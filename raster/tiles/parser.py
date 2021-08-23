@@ -440,6 +440,7 @@ class RasterLayerParser(object):
 
         if len(batch):
             RasterTile.objects.bulk_create(batch, self.batch_step_size)
+            print("batch written: " + str(len(batch)))
             batch = []    
             # Commit batch to database and reset it  
 
