@@ -364,11 +364,11 @@ class RasterLayerParser(object):
         # Compute quadrant bounds and create destination file
         bounds = utils.tile_bounds(indexrange[0], indexrange[1], zoom)
 
-        dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
+        # dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
 
         # Snap dataset to the quadrant
         self.snapped_dataset = self.dataset.warp({
-            'name': dest_file_name,
+            'name': '/vsimem/temporarymemfile',
             'origin': [bounds[0], bounds[3]],
             'scale': [tilescale, -tilescale],
             'width': (indexrange[2] - indexrange[0] + 1) * self.tilesize,
@@ -381,7 +381,7 @@ class RasterLayerParser(object):
             
         # Remove quadrant raster tempfile.
         self.snapped_dataset = None
-        os.remove(dest_file_name)
+        # os.remove(dest_file_name)
 
     async def write_tiles_async(self,indexrange, zoom, tilescale):
         tasks = []
