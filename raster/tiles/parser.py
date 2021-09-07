@@ -404,11 +404,6 @@ class RasterLayerParser(object):
                     )
                 )
 
-                # Commit batch to database and reset it
-                # if len(batch) == self.batch_step_size:
-                #     RasterTile.objects.bulk_create(batch)
-                #     batch = []
-
             if len(batch):
                 RasterTile.objects.bulk_create(batch, self.batch_step_size)
                 # print("{0}, batch# written: {1} for zoom: {2}".format(self.rasterlayer.id, len(batch), zoom))
@@ -416,6 +411,7 @@ class RasterLayerParser(object):
 
         # Remove quadrant raster tempfile.
         snapped_dataset = None
+        # can not remove in memory vsimem  (see gdal doc vsimem), when out of scope memory will be released
         # os.remove(dest_file_name)
 
     def push_histogram(self, data):
@@ -449,8 +445,8 @@ class RasterLayerParser(object):
         if self.rasterlayer.rasterfile.name:
             tmpFile = os.path.join("/tmp/", os.path.basename(self.rasterlayer.rasterfile.name))
             if tmpFile:
-                print("tmpfile to maybe delete: " + tmpFile)
                 if os.path.exists(tmpFile):
+                    print("tmpfile to be deleted: " + tmpFile)
                     os.remove(tmpFile)
 
         rasterlayers_parser_ended.send(sender=self.rasterlayer.__class__, instance=self.rasterlayer)

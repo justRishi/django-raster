@@ -341,6 +341,8 @@ class AlgebraView(RasterView):
 
     def get_rgb(self, data):
         # Get data arrays from tiles, by band if requested.
+        print("udpate 2")
+
         for key, tile in data.items():
 
             keysplit = key.split(BAND_INDEX_SEPARATOR)
@@ -412,7 +414,14 @@ class AlgebraView(RasterView):
             mode = 'RGBA'
             reshape = 4
             # Create the alpha channel.
-            alpha = 255 * (red > 0) * (blue > 0) * (green > 0)
+            # if red == 0 or blue == 0 or green == 0:
+            #     alpha = 255 * (red >= 0) * (blue >= 0) * (green >= 0)
+            # else:
+           
+            if numpy.all(red > 0) or numpy.all(blue > 0) or numpy.all(green > 0):
+                alpha = 255 * (red >= 0) * (blue >= 0) * (green >= 0)
+            else:
+                alpha = 255 * (red > 0) * (blue > 0) * (green > 0)
             img_array = numpy.array((red.ravel(), green.ravel(), blue.ravel(), alpha.ravel()))
         else:
             mode = 'RGB'
