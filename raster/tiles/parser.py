@@ -343,7 +343,8 @@ class RasterLayerParser(object):
 
         # Compute quadrant bounds and create destination file
         bounds = utils.tile_bounds(indexrange[0], indexrange[1], zoom)
-        dest_file_name = os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))
+      
+        dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
 
         # Snap dataset to the quadrant
         snapped_dataset = self.dataset.warp({
@@ -413,10 +414,13 @@ class RasterLayerParser(object):
                 RasterTile.objects.bulk_create(batch, self.batch_step_size)
                 # print("{0}, batch# written: {1} for zoom: {2}".format(self.rasterlayer.id, len(batch), zoom))
                 batch = [] 
-
         # Remove quadrant raster tempfile.
-        snapped_dataset = None
-        # os.remove(dest_file_name)
+            snapped_dataset = None
+            try:
+                os.remove(dest_file_name)
+            except OSError as error:
+                print(error)
+                print("File path can not be removed")
 
     def push_histogram(self, data):
         """
