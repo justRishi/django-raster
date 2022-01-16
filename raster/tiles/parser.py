@@ -92,12 +92,14 @@ class RasterLayerParser(object):
                 bucket_name = url.split('s3://')[1].split('/')[0]
                 bucket_key = '/'.join(url.split('s3://')[1].split('/')[1:])
                 # Assume the file name is the last piece of the key.
-                filename = bucket_key.split('/')[-1]
-                filepath = os.path.join(self.tmpdir, filename)
+                # filename = bucket_key.split('/')[-1]
+                filepath = os.path.join("/vsis3/" + bucket_name + "/" + bucket_key)
+
                 # Get file from s3.
-                s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
-                bucket = s3.Bucket(bucket_name)
-                bucket.download_file(bucket_key, filepath, ExtraArgs={'RequestPayer': 'requester'})
+                # s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
+                # bucket = s3.Bucket(bucket_name)
+                # bucket.download_file(bucket_key, filepath, ExtraArgs={'RequestPayer': 'requester'})
+
             else:
                 raise RasterException('Only http(s) and s3 urls are supported.')
         else:
@@ -159,6 +161,11 @@ class RasterLayerParser(object):
                     'type of raster does not support write mode.'
                 )
             self.dataset.srs = self.rasterlayer.srid
+        
+        # try:
+        #     os.remove(filepath)
+        # except Exception:
+        #     print("could not remove tmp file")
 
     def reproject_rasterfile(self):
         """
