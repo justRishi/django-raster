@@ -415,7 +415,7 @@ class RasterLayerParser(object):
                 batch = [] 
 
         # Remove quadrant raster tempfile.
-        GDALRaster.Unlink(dest_file_name)
+        # GDALRaster.Unlink(dest_file_name)
         del snapped_dataset
         del dest_file_name
         snapped_dataset = None
