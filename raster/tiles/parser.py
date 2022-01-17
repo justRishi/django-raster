@@ -101,7 +101,7 @@ class RasterLayerParser(object):
                 # Get file from s3.
                 s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
                 bucket = s3.Bucket(bucket_name)
-                bucket.download_file(bucket_key, filepath, ExtraArgs={'RequestPayer': 'requester'})
+                bucket.download_fileobj(bucket_key, filepath)
 
             else:
                 raise RasterException('Only http(s) and s3 urls are supported.')
