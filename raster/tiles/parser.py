@@ -162,11 +162,11 @@ class RasterLayerParser(object):
             # in_file = open(filepath, "rb")
             # in_file_bytes = in_file.read()
             # self.dataset = GDALRaster(in_file_bytes)
-            # tmp_dataset = GDALRaster(filepath)
-            # self.dataset = tmp_dataset.warp({'name': os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))})
-            self.dataset = GDALRaster(filepath)
-            # del tmp_dataset
-            # os.remove(filepath)
+            tmp_dataset = GDALRaster(filepath)
+            self.dataset = tmp_dataset.warp({'name': os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))})
+            #self.dataset = GDALRaster(filepath)
+            del tmp_dataset
+            os.remove(filepath)
             # in_file.close()
 
             self.log("temp for reading file in: {0} ".format(self.dataset.name))
@@ -435,10 +435,10 @@ class RasterLayerParser(object):
                     )
                 )
 
-                # Commit batch to database and reset it
-                # if len(batch) == self.batch_step_size:
-                #     RasterTile.objects.bulk_create(batch)
-                #     batch = []
+                #Commit batch to database and reset it
+                if len(batch) == self.batch_step_size:
+                    RasterTile.objects.bulk_create(batch)
+                    batch = []
 
             if len(batch):
                 RasterTile.objects.bulk_create(batch, self.batch_step_size)
@@ -448,9 +448,9 @@ class RasterLayerParser(object):
         # Remove quadrant raster tempfile.
         # GDALRaster.Unlink(dest_file_name)
         # os.remove(dest_file_name)
-        del snapped_dataset
+        # del snapped_dataset
         del dest_file_name
-        #snapped_dataset = None
+        snapped_dataset = None
        
 
     def push_histogram(self, data):
