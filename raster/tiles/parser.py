@@ -85,8 +85,11 @@ class RasterLayerParser(object):
             if url.lower().startswith('http') or url.startswith('file'):
                 url_path = urlparse(self.rasterlayer.source_url).path
                 filename = url_path.split('/')[-1]
-                filepath = os.path.join(self.tmpdir, filename)
-                urlretrieve(self.rasterlayer.source_url, filepath)
+                filepathDownload = os.path.join(self.tmpdir, filename)
+                urlretrieve(self.rasterlayer.source_url, filepathDownload)
+                filepath = GDALRaster.warp('/vsimem/readIn.tif', filepathDownload, format="tif", dstSRS="EPSG:3857")
+                print("used url file with vsimem")
+                os.remove(filepathDownload)
             elif url.startswith('s3'):
                 # Get the bucket name and file key, assuming the following url
                 # strucure: s3://BUCKET_NAME/BUCKET_KEY
@@ -103,7 +106,8 @@ class RasterLayerParser(object):
                 s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
                 bucket = s3.Bucket(bucket_name)
                 bucket.download_file(bucket_key, filepaths3, ExtraArgs={'RequestPayer': 'requester'})
-                filepath = GDALRaster.warp('/vsimem/readIn.tif', filepaths3)
+                filepath = GDALRaster.warp('/vsimem/readIn.tif', filepaths3, format="tif", dstSRS="EPSG:3857")
+                print("used s3 file with vsimem")
                 os.remove(filepaths3)
 
             else:
