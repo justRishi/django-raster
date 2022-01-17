@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 from urllib.request import urlretrieve
 
 import boto3
-import io
 import numpy
 
 from django.conf import settings
@@ -95,14 +94,15 @@ class RasterLayerParser(object):
                 bucket_key = '/'.join(url.split('s3://')[1].split('/')[1:])
                 # Assume the file name is the last piece of the key.
                 filename = bucket_key.split('/')[-1]
-                # filepath = os.path.join("/vsis3/" + bucket_name + "/" + bucket_key)
-                # filepath = os.path.join(self.tmpdir, filename)
-                byte_stream = io.BytesIO()  
+                filepaths3 = os.path.join("/vsis3/" + bucket_name + "/" + bucket_key)
+                filepath = GDALRaster.warp('/vsimem/readIn.tif', filepaths3)
+                
+                #filepath = os.path.join(self.tmpdir, filename)
+
                 # Get file from s3.
                 s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
                 bucket = s3.Bucket(bucket_name)
-                bucket.download_fileobj(bucket_key, byte_stream)
-                filepath = byte_stream.getvalue()
+                bucket.download_file(bucket_key, filepath, ExtraArgs={'RequestPayer': 'requester'})
 
             else:
                 raise RasterException('Only http(s) and s3 urls are supported.')
@@ -124,36 +124,36 @@ class RasterLayerParser(object):
 
         # If the raster file is compressed, decompress it, otherwise try to
         # open the source file directly.
-        # if os.path.splitext(filepath)[1].lower() == '.zip':
-        #     # Open and extract zipfile
-        #     zf = zipfile.ZipFile(filepath)
-        #     zf.extractall(self.tmpdir)
+        if os.path.splitext(filepath)[1].lower() == '.zip':
+            # Open and extract zipfile
+            zf = zipfile.ZipFile(filepath)
+            zf.extractall(self.tmpdir)
 
-        #     # Remove zipfile
-        #     os.remove(filepath)
+            # Remove zipfile
+            os.remove(filepath)
 
-        #     # Get filelist from directory
-        #     matches = []
-        #     for root, dirnames, filenames in os.walk(self.tmpdir):
-        #         for filename in fnmatch.filter(filenames, '*.*'):
-        #             matches.append(os.path.join(root, filename))
+            # Get filelist from directory
+            matches = []
+            for root, dirnames, filenames in os.walk(self.tmpdir):
+                for filename in fnmatch.filter(filenames, '*.*'):
+                    matches.append(os.path.join(root, filename))
 
-        #     # Open the first raster file found in the matched files.
-        #     self.dataset = None
-        #     for match in matches:
-        #         try:
-        #              # change to vsis3 or vsimem
-        #             self.dataset = GDALRaster(match)
-        #             break
-        #         except GDALException:
-        #             pass
+            # Open the first raster file found in the matched files.
+            self.dataset = None
+            for match in matches:
+                try:
+                     # change to vsis3 or vsimem
+                    self.dataset = GDALRaster(match)
+                    break
+                except GDALException:
+                    pass
 
-        #     # Raise exception if no file could be opened by gdal.
-        #     if not self.dataset:
-        #         raise RasterException('Could not open rasterfile.')
-        # else:
+            # Raise exception if no file could be opened by gdal.
+            if not self.dataset:
+                raise RasterException('Could not open rasterfile.')
+        else:
             # change to vsis3 or vsimem
-        self.dataset = GDALRaster(filepath)
+            self.dataset = GDALRaster(filepath)
 
         # Override srid if provided
         if self.rasterlayer.srid:
@@ -467,7 +467,7 @@ class RasterLayerParser(object):
                     print("tmpfile to delete: " + tmpFile)
                     os.remove(tmpFile)
 
-        # rasterlayers_parser_ended.send(sender=self.rasterlayer.__class__, instance=self.rasterlayer)
+        rasterlayers_parser_ended.send(sender=self.rasterlayer.__class__, instance=self.rasterlayer)
     
 
     def compute_max_zoom(self):
