@@ -97,11 +97,12 @@ class RasterLayerParser(object):
                 filename = bucket_key.split('/')[-1]
                 # filepath = os.path.join("/vsis3/" + bucket_name + "/" + bucket_key)
                 # filepath = os.path.join(self.tmpdir, filename)
-                filepath = io.BytesIO()  
+                byte_stream = io.BytesIO()  
                 # Get file from s3.
                 s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
                 bucket = s3.Bucket(bucket_name)
-                bucket.download_fileobj(bucket_key, filepath)
+                bucket.download_fileobj(bucket_key, byte_stream)
+                filepath = byte_stream.getvalue()
 
             else:
                 raise RasterException('Only http(s) and s3 urls are supported.')
