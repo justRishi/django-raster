@@ -469,7 +469,7 @@ class RasterLayerParser(object):
                     print("tmpfile to delete: " + tmpFile)
                     os.remove(tmpFile)
 
-        rasterlayers_parser_ended.send(sender=self.rasterlayer.__class__, instance=self.rasterlayer)
+        # rasterlayers_parser_ended.send(sender=self.rasterlayer.__class__, instance=self.rasterlayer)
     
 
     def compute_max_zoom(self):
