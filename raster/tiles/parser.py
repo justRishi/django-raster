@@ -85,11 +85,11 @@ class RasterLayerParser(object):
             if url.lower().startswith('http') or url.startswith('file'):
                 url_path = urlparse(self.rasterlayer.source_url).path
                 filename = url_path.split('/')[-1]
-                filepathDownload = os.path.join(self.tmpdir, filename)
-                urlretrieve(self.rasterlayer.source_url, filepathDownload)
-                filepath = GDALRaster.warp('/vsimem/readIn.tif', filepathDownload, format="tif", dstSRS="EPSG:3857")
-                print("used url file with vsimem")
-                os.remove(filepathDownload)
+                filepath = os.path.join(self.tmpdir, filename)
+                urlretrieve(self.rasterlayer.source_url, filepath)
+                # filepath = GDALRaster.warp('/vsimem/readIn.tif', filepathDownload, format="tif", dstSRS="EPSG:3857")
+                # self.log("used url file with vsimem")
+                # os.remove(filepathDownload)
             elif url.startswith('s3'):
                 # Get the bucket name and file key, assuming the following url
                 # strucure: s3://BUCKET_NAME/BUCKET_KEY
@@ -100,15 +100,15 @@ class RasterLayerParser(object):
                 # filepaths3 = os.path.join("/vsis3/" + bucket_name + "/" + bucket_key)
                 # filepath = GDALRaster.warp('/vsimem/readIn.tif', filepaths3)
                 
-                filepaths3 = os.path.join(self.tmpdir, filename)
+                filepath = os.path.join(self.tmpdir, filename)
 
                 # Get file from s3.
                 s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
                 bucket = s3.Bucket(bucket_name)
-                bucket.download_file(bucket_key, filepaths3, ExtraArgs={'RequestPayer': 'requester'})
-                filepath = GDALRaster.warp('/vsimem/readIn.tif', filepaths3, format="tif", dstSRS="EPSG:3857")
-                print("used s3 file with vsimem")
-                os.remove(filepaths3)
+                bucket.download_file(bucket_key, filepath, ExtraArgs={'RequestPayer': 'requester'})
+                # filepath = GDALRaster.warp('/vsimem/readIn.tif', filepaths3, format="tif", dstSRS="EPSG:3857")
+                # self.log("used s3 file with vsimem")
+                # os.remove(filepaths3)
 
             else:
                 raise RasterException('Only http(s) and s3 urls are supported.')
@@ -130,36 +130,47 @@ class RasterLayerParser(object):
 
         # If the raster file is compressed, decompress it, otherwise try to
         # open the source file directly.
-        # if os.path.splitext(filepath)[1].lower() == '.zip':
-        #     # Open and extract zipfile
-        #     zf = zipfile.ZipFile(filepath)
-        #     zf.extractall(self.tmpdir)
+        if os.path.splitext(filepath)[1].lower() == '.zip':
+            # Open and extract zipfile
+            zf = zipfile.ZipFile(filepath)
+            zf.extractall(self.tmpdir)
 
-        #     # Remove zipfile
-        #     os.remove(filepath)
+            # Remove zipfile
+            os.remove(filepath)
 
-        #     # Get filelist from directory
-        #     matches = []
-        #     for root, dirnames, filenames in os.walk(self.tmpdir):
-        #         for filename in fnmatch.filter(filenames, '*.*'):
-        #             matches.append(os.path.join(root, filename))
+            # Get filelist from directory
+            matches = []
+            for root, dirnames, filenames in os.walk(self.tmpdir):
+                for filename in fnmatch.filter(filenames, '*.*'):
+                    matches.append(os.path.join(root, filename))
 
-        #     # Open the first raster file found in the matched files.
-        #     self.dataset = None
-        #     for match in matches:
-        #         try:
-        #              # change to vsis3 or vsimem
-        #             self.dataset = GDALRaster(match)
-        #             break
-        #         except GDALException:
-        #             pass
+            # Open the first raster file found in the matched files.
+            self.dataset = None
+            for match in matches:
+                try:
+                     # change to vsis3 or vsimem
+                    self.dataset = GDALRaster(match)
+                    break
+                except GDALException:
+                    pass
 
-        #     # Raise exception if no file could be opened by gdal.
-        #     if not self.dataset:
-        #         raise RasterException('Could not open rasterfile.')
-        # else:
+            # Raise exception if no file could be opened by gdal.
+            if not self.dataset:
+                raise RasterException('Could not open rasterfile.')
+        else:
             # change to vsis3 or vsimem
-        self.dataset = GDALRaster(filepath)
+            # in_file = open(filepath, "rb")
+            # in_file_bytes = in_file.read()
+            # self.dataset = GDALRaster(in_file_bytes)
+            # tmp_dataset = GDALRaster(filepath)
+            # self.dataset = tmp_dataset.warp({'name': os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))})
+            self.dataset = GDALRaster(filepath)
+            # del tmp_dataset
+            # os.remove(filepath)
+            # in_file.close()
+
+            self.log("temp for reading file in: {0} ".format(self.dataset.name))
+            print(self.dataset.name)
 
         # Override srid if provided
         if self.rasterlayer.srid:
@@ -361,6 +372,7 @@ class RasterLayerParser(object):
         # Compute quadrant bounds and create destination file
         bounds = utils.tile_bounds(indexrange[0], indexrange[1], zoom)
         dest_file_name = os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))
+        #dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
 
         # Snap dataset to the quadrant
         snapped_dataset = self.dataset.warp({
@@ -410,6 +422,8 @@ class RasterLayerParser(object):
                     'bands': band_data,
                 })
 
+                # self.log("temp tiles file out: {0} ".format(dest.name))
+
                 # Store tile in batch array
                 batch.append(
                     RasterTile(
@@ -433,10 +447,11 @@ class RasterLayerParser(object):
 
         # Remove quadrant raster tempfile.
         # GDALRaster.Unlink(dest_file_name)
+        # os.remove(dest_file_name)
         del snapped_dataset
         del dest_file_name
-        snapped_dataset = None
-        # os.remove(dest_file_name)
+        #snapped_dataset = None
+       
 
     def push_histogram(self, data):
         """
