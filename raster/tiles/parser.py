@@ -94,10 +94,10 @@ class RasterLayerParser(object):
                 bucket_key = '/'.join(url.split('s3://')[1].split('/')[1:])
                 # Assume the file name is the last piece of the key.
                 filename = bucket_key.split('/')[-1]
-                filepaths3 = os.path.join("/vsis3/" + bucket_name + "/" + bucket_key)
-                filepath = GDALRaster.warp('/vsimem/readIn.tif', filepaths3)
+                # filepaths3 = os.path.join("/vsis3/" + bucket_name + "/" + bucket_key)
+                # filepath = GDALRaster.warp('/vsimem/readIn.tif', filepaths3)
                 
-                #filepath = os.path.join(self.tmpdir, filename)
+                filepath = os.path.join(self.tmpdir, filename)
 
                 # Get file from s3.
                 s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
