@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from urllib.request import urlretrieve
 
 import boto3
+import io
 import numpy
 
 from django.conf import settings
@@ -24,7 +25,7 @@ from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_
 
 
 class RasterLayerParser(object):
-    filepath = None
+    
     """
     Class to parse raster layers.
     """
@@ -85,8 +86,8 @@ class RasterLayerParser(object):
             if url.lower().startswith('http') or url.startswith('file'):
                 url_path = urlparse(self.rasterlayer.source_url).path
                 filename = url_path.split('/')[-1]
-                self.filepath = os.path.join(self.tmpdir, filename)
-                urlretrieve(self.rasterlayer.source_url, self.filepath)
+                filepath = os.path.join(self.tmpdir, filename)
+                urlretrieve(self.rasterlayer.source_url, filepath)
             elif url.startswith('s3'):
                 # Get the bucket name and file key, assuming the following url
                 # strucure: s3://BUCKET_NAME/BUCKET_KEY
@@ -95,12 +96,12 @@ class RasterLayerParser(object):
                 # Assume the file name is the last piece of the key.
                 filename = bucket_key.split('/')[-1]
                 # filepath = os.path.join("/vsis3/" + bucket_name + "/" + bucket_key)
-                self.filepath = os.path.join(self.tmpdir, filename)
-
+                # filepath = os.path.join(self.tmpdir, filename)
+                filepath = io.BytesIO()  
                 # Get file from s3.
                 s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
                 bucket = s3.Bucket(bucket_name)
-                bucket.download_file(bucket_key, self.filepath, ExtraArgs={'RequestPayer': 'requester'})
+                bucket.download_file(bucket_key, filepath, ExtraArgs={'RequestPayer': 'requester'})
 
             else:
                 raise RasterException('Only http(s) and s3 urls are supported.')
@@ -114,21 +115,21 @@ class RasterLayerParser(object):
                 raise RasterException('No data source found. Provide a rasterfile or a source url.')
 
             # Copy raster file source to local folder
-            self.filepath = os.path.join(self.tmpdir, os.path.basename(rasterfile_source.name))
-            rasterfile = open(self.filepath, 'wb')
+            filepath = os.path.join(self.tmpdir, os.path.basename(rasterfile_source.name))
+            rasterfile = open(filepath, 'wb')
             for chunk in rasterfile_source.chunks():
                 rasterfile.write(chunk)
             rasterfile.close()
 
         # If the raster file is compressed, decompress it, otherwise try to
         # open the source file directly.
-        if os.path.splitext(self.filepath)[1].lower() == '.zip':
+        if os.path.splitext(filepath)[1].lower() == '.zip':
             # Open and extract zipfile
-            zf = zipfile.ZipFile(self.filepath)
+            zf = zipfile.ZipFile(filepath)
             zf.extractall(self.tmpdir)
 
             # Remove zipfile
-            os.remove(self.filepath)
+            os.remove(filepath)
 
             # Get filelist from directory
             matches = []
@@ -151,7 +152,7 @@ class RasterLayerParser(object):
                 raise RasterException('Could not open rasterfile.')
         else:
             # change to vsis3 or vsimem
-            self.dataset = GDALRaster(self.filepath)
+            self.dataset = GDALRaster(filepath)
 
         # Override srid if provided
         if self.rasterlayer.srid:
@@ -464,10 +465,6 @@ class RasterLayerParser(object):
                 if os.path.exists(tmpFile):
                     print("tmpfile to delete: " + tmpFile)
                     os.remove(tmpFile)
-        
-        if self.filepath:
-            if os.path.exists(self.filepath):
-                os.remove(self.filepath)
 
         # rasterlayers_parser_ended.send(sender=self.rasterlayer.__class__, instance=self.rasterlayer)
     
