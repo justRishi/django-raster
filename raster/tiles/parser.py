@@ -123,36 +123,36 @@ class RasterLayerParser(object):
 
         # If the raster file is compressed, decompress it, otherwise try to
         # open the source file directly.
-        if os.path.splitext(filepath)[1].lower() == '.zip':
-            # Open and extract zipfile
-            zf = zipfile.ZipFile(filepath)
-            zf.extractall(self.tmpdir)
+        # if os.path.splitext(filepath)[1].lower() == '.zip':
+        #     # Open and extract zipfile
+        #     zf = zipfile.ZipFile(filepath)
+        #     zf.extractall(self.tmpdir)
 
-            # Remove zipfile
-            os.remove(filepath)
+        #     # Remove zipfile
+        #     os.remove(filepath)
 
-            # Get filelist from directory
-            matches = []
-            for root, dirnames, filenames in os.walk(self.tmpdir):
-                for filename in fnmatch.filter(filenames, '*.*'):
-                    matches.append(os.path.join(root, filename))
+        #     # Get filelist from directory
+        #     matches = []
+        #     for root, dirnames, filenames in os.walk(self.tmpdir):
+        #         for filename in fnmatch.filter(filenames, '*.*'):
+        #             matches.append(os.path.join(root, filename))
 
-            # Open the first raster file found in the matched files.
-            self.dataset = None
-            for match in matches:
-                try:
-                     # change to vsis3 or vsimem
-                    self.dataset = GDALRaster(match)
-                    break
-                except GDALException:
-                    pass
+        #     # Open the first raster file found in the matched files.
+        #     self.dataset = None
+        #     for match in matches:
+        #         try:
+        #              # change to vsis3 or vsimem
+        #             self.dataset = GDALRaster(match)
+        #             break
+        #         except GDALException:
+        #             pass
 
-            # Raise exception if no file could be opened by gdal.
-            if not self.dataset:
-                raise RasterException('Could not open rasterfile.')
-        else:
+        #     # Raise exception if no file could be opened by gdal.
+        #     if not self.dataset:
+        #         raise RasterException('Could not open rasterfile.')
+        # else:
             # change to vsis3 or vsimem
-            self.dataset = GDALRaster(filepath)
+        self.dataset = GDALRaster(filepath)
 
         # Override srid if provided
         if self.rasterlayer.srid:
