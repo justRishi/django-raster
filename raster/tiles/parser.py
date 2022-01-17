@@ -169,8 +169,7 @@ class RasterLayerParser(object):
             # os.remove(filepath)
             # in_file.close()
 
-            self.log("temp for reading file in: {0} ".format(self.dataset.name))
-            print(self.dataset.name)
+            self.log("temp for reading file in: {0} size: {1}".format(self.dataset.name, os.path.getsize(filepath)))
 
         # Override srid if provided
         if self.rasterlayer.srid:
