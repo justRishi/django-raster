@@ -14,13 +14,14 @@ from django.conf import settings
 from django.contrib.gis.gdal import GDALRaster, OGRGeometry
 from django.contrib.gis.gdal.error import GDALException
 from django.core.files import File
-# from django.dispatch import Signal
+from django.dispatch import Signal
 from raster.exceptions import RasterException
 from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerReprojected, RasterTile
 from raster.tiles import utils
 from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
 
-# rasterlayers_parser_ended = Signal(providing_args=['instance'])
+# will not work with Django 4.x
+rasterlayers_parser_ended = Signal(providing_args=['instance'])
 
 
 class RasterLayerParser(object):
@@ -87,9 +88,6 @@ class RasterLayerParser(object):
                 filename = url_path.split('/')[-1]
                 filepath = os.path.join(self.tmpdir, filename)
                 urlretrieve(self.rasterlayer.source_url, filepath)
-                # filepath = GDALRaster.warp('/vsimem/readIn.tif', filepathDownload, format="tif", dstSRS="EPSG:3857")
-                # self.log("used url file with vsimem")
-                # os.remove(filepathDownload)
             elif url.startswith('s3'):
                 # Get the bucket name and file key, assuming the following url
                 # strucure: s3://BUCKET_NAME/BUCKET_KEY
@@ -97,8 +95,6 @@ class RasterLayerParser(object):
                 bucket_key = '/'.join(url.split('s3://')[1].split('/')[1:])
                 # Assume the file name is the last piece of the key.
                 filename = bucket_key.split('/')[-1]
-                # filepaths3 = os.path.join("/vsis3/" + bucket_name + "/" + bucket_key)
-                # filepath = GDALRaster.warp('/vsimem/readIn.tif', filepaths3)
                 
                 filepath = os.path.join(self.tmpdir, filename)
 
@@ -106,9 +102,6 @@ class RasterLayerParser(object):
                 s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
                 bucket = s3.Bucket(bucket_name)
                 bucket.download_file(bucket_key, filepath, ExtraArgs={'RequestPayer': 'requester'})
-                # filepath = GDALRaster.warp('/vsimem/readIn.tif', filepaths3, format="tif", dstSRS="EPSG:3857")
-                # self.log("used s3 file with vsimem")
-                # os.remove(filepaths3)
 
             else:
                 raise RasterException('Only http(s) and s3 urls are supported.')
@@ -158,16 +151,7 @@ class RasterLayerParser(object):
             if not self.dataset:
                 raise RasterException('Could not open rasterfile.')
         else:
-            # change to vsis3 or vsimem
-            # in_file = open(filepath, "rb")
-            # in_file_bytes = in_file.read()
-            # self.dataset = GDALRaster(in_file_bytes)
-            # tmp_dataset = GDALRaster(filepath)
-            # self.dataset = tmp_dataset.warp({'name': os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))})
             self.dataset = GDALRaster(filepath)
-            # del tmp_dataset
-            # os.remove(filepath)
-            # in_file.close()
 
             self.log("temp for reading file in: {0} size: {1}".format(self.dataset.name, os.path.getsize(filepath)))
 
@@ -181,11 +165,6 @@ class RasterLayerParser(object):
                     'type of raster does not support write mode.'
                 )
             self.dataset.srs = self.rasterlayer.srid
-        
-        # try:
-        #     os.remove(filepath)
-        # except Exception:
-        #     print("could not remove tmp file")
 
     def reproject_rasterfile(self):
         """
@@ -480,14 +459,7 @@ class RasterLayerParser(object):
             status=self.rasterlayer.parsestatus.FINISHED
         )
 
-        if self.rasterlayer.rasterfile.name:
-            tmpFile = os.path.join("/tmp/", os.path.basename(self.rasterlayer.rasterfile.name))
-            if tmpFile:
-                if os.path.exists(tmpFile):
-                    print("tmpfile to delete: " + tmpFile)
-                    os.remove(tmpFile)
-
-        # rasterlayers_parser_ended.send(sender=self.rasterlayer.__class__, instance=self.rasterlayer)
+        rasterlayers_parser_ended.send(sender=self.rasterlayer.__class__, instance=self.rasterlayer)
     
 
     def compute_max_zoom(self):
