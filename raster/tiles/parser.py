@@ -349,17 +349,19 @@ class RasterLayerParser(object):
 
         # Compute quadrant bounds and create destination file
         bounds = utils.tile_bounds(indexrange[0], indexrange[1], zoom)
-        dest_file_name = os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))
+        #dest_file_name = os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))
         #dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
-
+      
         # Snap dataset to the quadrant
         snapped_dataset = self.dataset.warp({
-            'name': dest_file_name,
+            # 'name': dest_file_name,
             'origin': [bounds[0], bounds[3]],
             'scale': [tilescale, -tilescale],
             'width': (indexrange[2] - indexrange[0] + 1) * self.tilesize,
             'height': (indexrange[3] - indexrange[1] + 1) * self.tilesize,
         })
+
+        print("snapped ds: {0}".format(snapped_dataset.name))
 
         # Create all tiles in this quadrant in batches
         batch = []
@@ -418,17 +420,21 @@ class RasterLayerParser(object):
                     RasterTile.objects.bulk_create(batch)
                     batch = []
 
-            if len(batch):
-                RasterTile.objects.bulk_create(batch, self.batch_step_size)
-                # print("{0}, batch# written: {1} for zoom: {2}".format(self.rasterlayer.id, len(batch), zoom))
-                batch = [] 
+        if len(batch):
+            RasterTile.objects.bulk_create(batch, self.batch_step_size)
+            # print("{0}, batch# written: {1} for zoom: {2}".format(self.rasterlayer.id, len(batch), zoom))
+            batch = [] 
 
         # Remove quadrant raster tempfile.
         # GDALRaster.Unlink(dest_file_name)
-        # os.remove(dest_file_name)
-        # del snapped_dataset
-        del dest_file_name
+        # os.unlink(dest_file_name)
         snapped_dataset = None
+        # try:
+        #     os.remove(dest_file_name)
+        # except:
+        #     print("Can not delete tmp file {0}".format(dest_file_name))
+        # # del snapped_dataset
+        # del dest_file_name
        
 
     def push_histogram(self, data):
