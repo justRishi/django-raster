@@ -14,16 +14,18 @@ from django.conf import settings
 from django.contrib.gis.gdal import GDALRaster, OGRGeometry
 from django.contrib.gis.gdal.error import GDALException
 from django.core.files import File
-# from django.dispatch import Signal
+from django.dispatch import Signal
 from raster.exceptions import RasterException
 from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerReprojected, RasterTile
 from raster.tiles import utils
 from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
 
-# rasterlayers_parser_ended = Signal(providing_args=['instance'])
+rasterlayers_parser_ended = Signal(providing_args=['instance'])
 
 
 class RasterLayerParser(object):
+    dataset = None
+    filepath = None
     
     """
     Class to parse raster layers.
@@ -77,7 +79,8 @@ class RasterLayerParser(object):
 
         # Create workdir
         raster_workdir = getattr(settings, 'RASTER_WORKDIR', None)
-        self.tmpdir = tempfile.mkdtemp(dir=raster_workdir)
+        # self.tmpdir = tempfile.mkdtemp(dir=raster_workdir)
+        self.tmpdir = raster_workdir
 
         # Choose source for raster data, use the reprojected version if it exists.
         if self.rasterlayer.source_url and not has_reprojected:
@@ -85,8 +88,9 @@ class RasterLayerParser(object):
             if url.lower().startswith('http') or url.startswith('file'):
                 url_path = urlparse(self.rasterlayer.source_url).path
                 filename = url_path.split('/')[-1]
-                filepath = os.path.join(self.tmpdir, filename)
-                urlretrieve(self.rasterlayer.source_url, filepath)
+                self.filepath = os.path.join(self.tmpdir, filename)
+                if not os.path.isfile(self.filepath):
+                    urlretrieve(self.rasterlayer.source_url, self.filepath)
                 # filepath = GDALRaster.warp('/vsimem/readIn.tif', filepathDownload, format="tif", dstSRS="EPSG:3857")
                 # self.log("used url file with vsimem")
                 # os.remove(filepathDownload)
@@ -100,15 +104,15 @@ class RasterLayerParser(object):
                 # filepaths3 = os.path.join("/vsis3/" + bucket_name + "/" + bucket_key)
                 # filepath = GDALRaster.warp('/vsimem/readIn.tif', filepaths3)
                 
-                filepath = os.path.join(self.tmpdir, filename)
-
-                # Get file from s3.
-                s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
-                bucket = s3.Bucket(bucket_name)
-                bucket.download_file(bucket_key, filepath, ExtraArgs={'RequestPayer': 'requester'})
-                # filepath = GDALRaster.warp('/vsimem/readIn.tif', filepaths3, format="tif", dstSRS="EPSG:3857")
+                self.filepath = os.path.join(self.tmpdir, filename)
+                if not os.path.isfile(self.filepath):
+                    # Get file from s3.
+                    s3 = boto3.resource('s3', endpoint_url=self.s3_endpoint_url)
+                    bucket = s3.Bucket(bucket_name)
+                    bucket.download_file(bucket_key, self.filepath, ExtraArgs={'RequestPayer': 'requester'})
+                # self.filepath = GDALRaster.warp('/vsimem/readIn.tif', self.filepaths3, format="tif", dstSRS="EPSG:3857")
                 # self.log("used s3 file with vsimem")
-                # os.remove(filepaths3)
+                # os.remove(self.filepaths3)
 
             else:
                 raise RasterException('Only http(s) and s3 urls are supported.')
@@ -122,54 +126,19 @@ class RasterLayerParser(object):
                 raise RasterException('No data source found. Provide a rasterfile or a source url.')
 
             # Copy raster file source to local folder
-            filepath = os.path.join(self.tmpdir, os.path.basename(rasterfile_source.name))
-            rasterfile = open(filepath, 'wb')
+            self.filepath = os.path.join(self.tmpdir, os.path.basename(rasterfile_source.name))
+            rasterfile = open(self.filepath, 'wb')
             for chunk in rasterfile_source.chunks():
                 rasterfile.write(chunk)
             rasterfile.close()
 
-        # If the raster file is compressed, decompress it, otherwise try to
-        # open the source file directly.
-        if os.path.splitext(filepath)[1].lower() == '.zip':
-            # Open and extract zipfile
-            zf = zipfile.ZipFile(filepath)
-            zf.extractall(self.tmpdir)
-
-            # Remove zipfile
-            os.remove(filepath)
-
-            # Get filelist from directory
-            matches = []
-            for root, dirnames, filenames in os.walk(self.tmpdir):
-                for filename in fnmatch.filter(filenames, '*.*'):
-                    matches.append(os.path.join(root, filename))
-
-            # Open the first raster file found in the matched files.
-            self.dataset = None
-            for match in matches:
-                try:
-                     # change to vsis3 or vsimem
-                    self.dataset = GDALRaster(match)
-                    break
-                except GDALException:
-                    pass
-
-            # Raise exception if no file could be opened by gdal.
-            if not self.dataset:
-                raise RasterException('Could not open rasterfile.')
-        else:
-            # change to vsis3 or vsimem
-            # in_file = open(filepath, "rb")
-            # in_file_bytes = in_file.read()
-            # self.dataset = GDALRaster(in_file_bytes)
-            # tmp_dataset = GDALRaster(filepath)
-            # self.dataset = tmp_dataset.warp({'name': os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))})
-            self.dataset = GDALRaster(filepath)
+        if  self.dataset is None: 
+            self.dataset = GDALRaster(self.filepath)
             # del tmp_dataset
-            # os.remove(filepath)
+            # os.remove(self.filepath)
             # in_file.close()
 
-            self.log("temp for reading file in: {0} size: {1}".format(self.dataset.name, os.path.getsize(filepath)))
+            self.log("temp for reading file in: {0} size: {1}".format(self.dataset.name, os.path.getsize(self.filepath)))
 
         # Override srid if provided
         if self.rasterlayer.srid:
@@ -183,7 +152,7 @@ class RasterLayerParser(object):
             self.dataset.srs = self.rasterlayer.srid
         
         # try:
-        #     os.remove(filepath)
+        #     os.remove(self.filepath)
         # except Exception:
         #     print("could not remove tmp file")
 
@@ -481,13 +450,10 @@ class RasterLayerParser(object):
         )
 
         if self.rasterlayer.rasterfile.name:
-            tmpFile = os.path.join("/tmp/", os.path.basename(self.rasterlayer.rasterfile.name))
-            if tmpFile:
-                if os.path.exists(tmpFile):
-                    print("tmpfile to delete: " + tmpFile)
-                    os.remove(tmpFile)
+                if os.path.exists(self.filepath):
+                    os.remove(self.filepath)
 
-        # rasterlayers_parser_ended.send(sender=self.rasterlayer.__class__, instance=self.rasterlayer)
+        rasterlayers_parser_ended.send(sender=self.rasterlayer.__class__, instance=self.rasterlayer)
     
 
     def compute_max_zoom(self):

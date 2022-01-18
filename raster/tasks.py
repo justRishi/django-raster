@@ -49,7 +49,7 @@ def create_tiles(rasterlayer_id, zoom, extract_metadata=False):
             tmpdir = parser.tmpdir
             parser.dataset = None
             parser = None
-            shutil.rmtree(tmpdir)
+            # shutil.rmtree(tmpdir)
 
 
 @shared_task
