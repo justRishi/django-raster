@@ -339,6 +339,8 @@ class RasterLayerParser(object):
         # TODO Use a standalone celery task for this method in order to
         # gain speedup from parallelism.
         self._quadrant_count += 1
+        count_written = 0
+
         self.log(
             'Starting tile creation for quadrant {0} at zoom level {1}'.format(self._quadrant_count, zoom),
             status=self.rasterlayer.parsestatus.CREATING_TILES
@@ -349,8 +351,8 @@ class RasterLayerParser(object):
 
         # Compute quadrant bounds and create destination file
         bounds = utils.tile_bounds(indexrange[0], indexrange[1], zoom)
-        #dest_file_name = os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))
-        dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
+        dest_file_name = os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))
+        #dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
       
         # Snap dataset to the quadrant
         snapped_dataset = self.dataset.warp({
@@ -417,22 +419,26 @@ class RasterLayerParser(object):
 
                 #Commit batch to database and reset it
                 if len(batch) == self.batch_step_size:
+                    count_written += len(batch)
                     RasterTile.objects.bulk_create(batch)
+                    self.log("...{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
                     batch = []
 
         if len(batch):
             RasterTile.objects.bulk_create(batch, self.batch_step_size)
-            # print("{0}, batch# written: {1} for zoom: {2}".format(self.rasterlayer.id, len(batch), zoom))
+            count_written += len(batch)
+            self.log("...{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
             batch = [] 
 
         # Remove quadrant raster tempfile.
         # GDALRaster.Unlink(dest_file_name)
         # os.unlink(dest_file_name)
-        snapped_dataset = None
         try:
-            os.remove(dest_file_name)
+            # os.remove(dest_file_name)
+            del snapped_dataset
+            # del dest_file_name
         except:
-            print("Can not delete tmp file {0}".format(dest_file_name))
+            print("Can not delete tmp {0}".format(dest_file_name))
         # del snapped_dataset
         #del dest_file_name
        
