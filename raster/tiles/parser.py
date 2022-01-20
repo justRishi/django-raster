@@ -9,6 +9,7 @@ from urllib.request import urlretrieve
 
 import boto3
 import numpy
+import gc
 
 from django.conf import settings
 from django.contrib.gis.gdal import GDALRaster, OGRGeometry
@@ -18,7 +19,7 @@ from django.dispatch import Signal
 from raster.exceptions import RasterException
 from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerReprojected, RasterTile
 from raster.tiles import utils
-from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
+from raster.tiles.const import BATCH_STEP_SIZE, BATCH_TO_DB_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
 
 # will not work with Django 4.x
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
@@ -35,6 +36,9 @@ class RasterLayerParser(object):
         # Set raster tilesize
         self.tilesize = int(getattr(settings, 'RASTER_TILESIZE', WEB_MERCATOR_TILESIZE))
         self.batch_step_size = int(getattr(settings, 'RASTER_BATCH_STEP_SIZE', BATCH_STEP_SIZE))
+        self.batch_write_to_db_size = int(getattr(settings, 'RASTER_BATCH_TO_DB_SIZE', BATCH_TO_DB_SIZE))
+
+
         self.s3_endpoint_url = getattr(settings, 'RASTER_S3_ENDPOINT_URL', None)
 
     def log(self, msg, status=None, zoom=None):
@@ -165,6 +169,7 @@ class RasterLayerParser(object):
                     'type of raster does not support write mode.'
                 )
             self.dataset.srs = self.rasterlayer.srid
+        gc.collect()
 
     def reproject_rasterfile(self):
         """
@@ -226,8 +231,9 @@ class RasterLayerParser(object):
             self.rasterlayer.reprojected.save()
             # Remove tmp file
             os.unlink(dest.name)
-
+            del dest_zip
         self.log('Finished transforming raster.')
+        gc.collect()
 
     def create_initial_histogram_buckets(self):
         """
@@ -420,28 +426,21 @@ class RasterLayerParser(object):
                 #Commit batch to database and reset it
                 if len(batch) == self.batch_step_size:
                     count_written += len(batch)
-                    RasterTile.objects.bulk_create(batch)
+                    RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
                     self.log("...{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
                     batch = []
 
         if len(batch):
-            RasterTile.objects.bulk_create(batch, self.batch_step_size)
+            RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
             count_written += len(batch)
             self.log("...{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
-            batch = [] 
 
-        # Remove quadrant raster tempfile.
-        # GDALRaster.Unlink(dest_file_name)
-        # os.unlink(dest_file_name)
-        try:
-            # os.remove(dest_file_name)
-            del snapped_dataset
-            # del dest_file_name
-        except:
-            print("Can not delete tmp {0}".format(dest_file_name))
-        # del snapped_dataset
-        #del dest_file_name
-       
+        del batch
+        del bounds
+        del tilescale
+        del snapped_dataset
+        gc.collect()
+
 
     def push_histogram(self, data):
         """
