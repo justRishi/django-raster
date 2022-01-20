@@ -425,7 +425,7 @@ class RasterLayerParser(object):
                 if len(batch) == self.batch_step_size:
                     count_written += len(batch)
                     RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
-                    self.log("...{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
+                    self.log("....{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
                     for x in batch:
                         del x
 
