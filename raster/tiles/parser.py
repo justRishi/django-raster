@@ -324,8 +324,7 @@ class RasterLayerParser(object):
         for indexrange in quadrants:
             self.process_quadrant(indexrange, zoom)
             indexrange = None
-            self.log("cleaned up {0} objects for zoom {1} ".format(gc.collect(),zoom))
-            
+            gc.collect()
 
         # Store histogram data
         if zoom == self.max_zoom:
@@ -359,8 +358,8 @@ class RasterLayerParser(object):
 
         # Compute quadrant bounds and create destination file
         bounds = utils.tile_bounds(indexrange[0], indexrange[1], zoom)
-        dest_file_name = os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))
-        #dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
+        #dest_file_name = os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))
+        dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
       
         # Snap dataset to the quadrant
         snapped_dataset = self.dataset.warp({
@@ -429,12 +428,10 @@ class RasterLayerParser(object):
                 if len(batch) == self.batch_step_size:
                     count_written += len(batch)
                     RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
-                    self.log("....{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
+                    self.log("....{0}% of tiles written.".format(round(count_written/self.nr_of_tiles(zoom)*100)))
                     dest = None
-                    for b in batch:
-                        b = None
-                    del batch
-                    self.log("cleaned up {0} objects for {1}, {2}  ".format(gc.collect(),tilex, tiley))
+                    batch = None
+                    gc.collect()
                     batch = []
                     
 
@@ -443,12 +440,12 @@ class RasterLayerParser(object):
             count_written += len(batch)
             self.log("...{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
 
+        os.remove(dest_file_name)
         del batch
         del bounds
         del tilescale
         del snapped_dataset
-        self.log("cleaned up {0} objects final line process_quadrant".format(gc.collect()))
-                    
+        gc.collect()                  
 
 
     def push_histogram(self, data):
