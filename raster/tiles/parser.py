@@ -169,7 +169,6 @@ class RasterLayerParser(object):
                     'type of raster does not support write mode.'
                 )
             self.dataset.srs = self.rasterlayer.srid
-        gc.collect()
 
     def reproject_rasterfile(self):
         """
@@ -233,7 +232,6 @@ class RasterLayerParser(object):
             os.unlink(dest.name)
             del dest_zip
         self.log('Finished transforming raster.')
-        gc.collect()
 
     def create_initial_histogram_buckets(self):
         """
@@ -428,7 +426,12 @@ class RasterLayerParser(object):
                     count_written += len(batch)
                     RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
                     self.log("...{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
+                    for x in batch:
+                        del x
+
                     batch = []
+                    gc.collect()
+                    
 
         if len(batch):
             RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
