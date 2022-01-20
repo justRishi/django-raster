@@ -323,6 +323,9 @@ class RasterLayerParser(object):
         # Process quadrants in parallell
         for indexrange in quadrants:
             self.process_quadrant(indexrange, zoom)
+            indexrange = None
+            print("cleaned up {0} objects for zoom {1} ".format(gc.collect(),zoom))
+            
 
         # Store histogram data
         if zoom == self.max_zoom:
@@ -332,8 +335,12 @@ class RasterLayerParser(object):
                 bandmeta.save()
 
         self.log('Finished parsing at zoom level {0}.'.format(zoom), zoom=zoom)
+        del quadrants
+        del bbox
+        gc.collect()
 
     _quadrant_count = 0
+    
 
     def process_quadrant(self, indexrange, zoom):
         """
@@ -426,11 +433,9 @@ class RasterLayerParser(object):
                     count_written += len(batch)
                     RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
                     self.log("....{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
-                    for x in batch:
-                        del x
-
+                    batch =  None
+                    print("cleaned up {0} objects for {1}, {2}  ".format(gc.collect(),tilex, tiley))
                     batch = []
-                    gc.collect()
                     
 
         if len(batch):
@@ -438,11 +443,16 @@ class RasterLayerParser(object):
             count_written += len(batch)
             self.log("...{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
 
+        batch = None
+        bounds = None
+        tilescale = None
+        snapped_dataset = None
         del batch
         del bounds
         del tilescale
         del snapped_dataset
-        gc.collect()
+        print("cleaned up {0} objects final line process_quadrant".format(gc.collect()))
+                    
 
 
     def push_histogram(self, data):
