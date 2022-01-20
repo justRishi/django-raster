@@ -324,7 +324,7 @@ class RasterLayerParser(object):
         for indexrange in quadrants:
             self.process_quadrant(indexrange, zoom)
             indexrange = None
-            print("cleaned up {0} objects for zoom {1} ".format(gc.collect(),zoom))
+            self.log("cleaned up {0} objects for zoom {1} ".format(gc.collect(),zoom))
             
 
         # Store histogram data
@@ -337,7 +337,7 @@ class RasterLayerParser(object):
         self.log('Finished parsing at zoom level {0}.'.format(zoom), zoom=zoom)
         del quadrants
         del bbox
-        gc.collect()
+        self.log("cleaned up {0} objects end of populate_tile_level".format(gc.collect()))
 
     _quadrant_count = 0
     
@@ -434,7 +434,7 @@ class RasterLayerParser(object):
                     RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
                     self.log("....{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
                     batch =  None
-                    print("cleaned up {0} objects for {1}, {2}  ".format(gc.collect(),tilex, tiley))
+                    self.log("cleaned up {0} objects for {1}, {2}  ".format(gc.collect(),tilex, tiley))
                     batch = []
                     
 
@@ -451,7 +451,7 @@ class RasterLayerParser(object):
         del bounds
         del tilescale
         del snapped_dataset
-        print("cleaned up {0} objects final line process_quadrant".format(gc.collect()))
+        self.log("cleaned up {0} objects final line process_quadrant".format(gc.collect()))
                     
 
 
