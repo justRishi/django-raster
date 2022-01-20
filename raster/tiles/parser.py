@@ -335,9 +335,6 @@ class RasterLayerParser(object):
                 bandmeta.save()
 
         self.log('Finished parsing at zoom level {0}.'.format(zoom), zoom=zoom)
-        del quadrants
-        del bbox
-        self.log("cleaned up {0} objects end of populate_tile_level".format(gc.collect()))
 
     _quadrant_count = 0
     
@@ -433,7 +430,10 @@ class RasterLayerParser(object):
                     count_written += len(batch)
                     RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
                     self.log("....{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
-                    batch =  None
+                    dest = None
+                    for b in batch:
+                        b = None
+                    del batch
                     self.log("cleaned up {0} objects for {1}, {2}  ".format(gc.collect(),tilex, tiley))
                     batch = []
                     
@@ -443,10 +443,6 @@ class RasterLayerParser(object):
             count_written += len(batch)
             self.log("...{0} of {1} tiles written.".format(count_written, self.nr_of_tiles(zoom)))
 
-        batch = None
-        bounds = None
-        tilescale = None
-        snapped_dataset = None
         del batch
         del bounds
         del tilescale
