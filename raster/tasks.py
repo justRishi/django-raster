@@ -132,3 +132,6 @@ def parse(rasterlayer_id):
         all_in_one.delay(rasterlayer_id, zoom_range)
     else:
         all_in_one(rasterlayer_id, zoom_range)
+    
+    parser = None
+    gc.collect()
