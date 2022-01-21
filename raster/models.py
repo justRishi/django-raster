@@ -126,7 +126,9 @@ class RasterLayer(models.Model, ValueCountMixin):
     name = models.CharField(max_length=100, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
     datatype = models.CharField(max_length=2, choices=DATATYPES, default='co')
-    rasterfile = models.FileField(upload_to='rasters', null=True, blank=True)
+    rasterfile = models.FileField(upload_to='rasters', null=True, blank=True,
+    help_text='For Raster files bigger than 1GB use SRID 3857, otherwise will be reprojected and this is very slow'
+                  'value is specified here, it will be used for all bands of this raster.')
     source_url = models.CharField(default='', blank=True, max_length=2500,
         help_text='External url to get the raster file from. If a value is set,'
                   'the rasterfile field will be ignored.')
@@ -148,7 +150,7 @@ class RasterLayer(models.Model, ValueCountMixin):
                   'zoomlevel as max zoom? If unchecked, the next-lower zoom level '
                   'is used. This flag is ignored if the max_zoom is manually '
                   'specified.')
-    store_reprojected = models.BooleanField(default=True,
+    store_reprojected = models.BooleanField(default=False,
         help_text='Should the reprojected raster be stored? If unchecked, the '
                   'reprojected version of the raster is not stored.')
     legend = models.ForeignKey(Legend, blank=True, null=True, on_delete=models.CASCADE)
