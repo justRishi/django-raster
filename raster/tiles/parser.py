@@ -19,7 +19,7 @@ from django.dispatch import Signal
 from raster.exceptions import RasterException
 from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerReprojected, RasterTile
 from raster.tiles import utils
-from raster.tiles.const import BATCH_STEP_SIZE, BATCH_TO_DB_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
+from raster.tiles.const import BATCH_STEP_SIZE, BATCH_TO_DB_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE, USE_VSIMEM
 
 # will not work with Django 4.x
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
@@ -37,6 +37,7 @@ class RasterLayerParser(object):
         self.tilesize = int(getattr(settings, 'RASTER_TILESIZE', WEB_MERCATOR_TILESIZE))
         self.batch_step_size = int(getattr(settings, 'RASTER_BATCH_STEP_SIZE', BATCH_STEP_SIZE))
         self.batch_write_to_db_size = int(getattr(settings, 'RASTER_BATCH_TO_DB_SIZE', BATCH_TO_DB_SIZE))
+        self.use_vsimem = bool(getattr(settings, 'RASTER_USE_VSIMEM', USE_VSIMEM))
 
 
         self.s3_endpoint_url = getattr(settings, 'RASTER_S3_ENDPOINT_URL', None)
@@ -360,8 +361,12 @@ class RasterLayerParser(object):
 
             # Compute quadrant bounds and create destination file
             bounds = utils.tile_bounds(indexrange[0], indexrange[1], zoom)
-            #dest_file_name = os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))
-            dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
+            if self.use_vsimem:
+                dest_file_name = os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))
+                self.log("....using gdal vsimem")
+            else:
+                dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
+                self.log("....using tmp file {0}".format(dest_file_name))
         
             # Snap dataset to the quadrant
             snapped_dataset = self.dataset.warp({
@@ -431,8 +436,10 @@ class RasterLayerParser(object):
                         count_written += len(batch)
                         RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
                         self.log("....{0}% of tiles written.".format(round(count_written/self.nr_of_tiles(zoom)*100)))
-                        dest = None
                         batch = None
+                        del dest
+                        del band_data
+                        del bounds
                         gc.collect()
                         batch = []
                         
@@ -440,8 +447,10 @@ class RasterLayerParser(object):
             if len(batch):
                 RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
         finally:
-            os.unlink(dest_file_name)
+            if not self.use_vsimem:
+                os.unlink(dest_file_name)
             del batch
+            del dest
             del bounds
             del tilescale
             del snapped_dataset
