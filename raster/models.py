@@ -127,9 +127,10 @@ class RasterLayer(models.Model, ValueCountMixin):
     description = models.TextField(blank=True, null=True)
     datatype = models.CharField(max_length=2, choices=DATATYPES, default='co')
     rasterfile = models.FileField(upload_to='rasters', null=True, blank=True,
-    help_text='Do not upload please use URL-field below.')
+    help_text='DO NOT USE!' 
+              ' Use the URL-field below.')
     source_url = models.CharField(default='', blank=True, max_length=2500,
-        help_text='BEGINS WITH s3:// ,'
+        help_text='BEGINS WITH s3:// , '
         'Better the aws-s3 file is a raster with SRID 3857!')
     nodata = models.CharField(max_length=100, null=True, blank=True)
     srid = models.IntegerField(null=True, blank=True, help_text='DO NOT USE !!!')
