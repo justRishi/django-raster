@@ -347,6 +347,10 @@ class RasterLayerParser(object):
         """
         # TODO Use a standalone celery task for this method in order to
         # gain speedup from parallelism.
+        snapped_dataset = None
+        bounds = None
+        tilescale = None
+
         try:
             self._quadrant_count += 1
             count_written = 0
@@ -361,6 +365,8 @@ class RasterLayerParser(object):
 
             # Compute quadrant bounds and create destination file
             bounds = utils.tile_bounds(indexrange[0], indexrange[1], zoom)
+
+            dest_file_name = None
             if self.use_vsimem:
                 dest_file_name = os.path.join('/vsimem/', '{}.tif'.format(uuid.uuid4()))
                 self.log("....using gdal vsimem")
@@ -449,8 +455,6 @@ class RasterLayerParser(object):
         finally:
             if not self.use_vsimem:
                 os.unlink(dest_file_name)
-            del batch
-            del dest
             del bounds
             del tilescale
             del snapped_dataset
