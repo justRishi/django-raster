@@ -436,33 +436,13 @@ class RasterLayerParser(object):
                             tilez=zoom
                         )
                     )
-
-                    #Commit batch to database and reset it
-                    if len(batch) == self.batch_step_size:
-                        count_written += len(batch)
-                        RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
-                        self.log("....{0}% of tiles written.".format(round(count_written/self.nr_of_tiles(zoom)*100)))
-                        batch = None
-                        del dest
-                        del band_data
-                        del bounds
-                        gc.collect()
-                        batch = []
                         
-
             if len(batch):
                 RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
+                        
         finally:
             if not self.use_vsimem:
-                os.unlink(dest_file_name)
-            try:
-                del bounds
-                del tilescale
-                del snapped_dataset
-            except:
-                print('')
-                
-            gc.collect()                  
+                os.unlink(dest_file_name)         
 
 
     def push_histogram(self, data):
