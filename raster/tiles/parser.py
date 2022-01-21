@@ -10,6 +10,8 @@ from urllib.request import urlretrieve
 import boto3
 import numpy
 import gc
+import math
+
 
 from django.conf import settings
 from django.contrib.gis.gdal import GDALRaster, OGRGeometry
@@ -441,7 +443,7 @@ class RasterLayerParser(object):
                         
         finally:
             if not self.use_vsimem:
-                self.log("....removing tmp of size {0} MB".format(round(os.path.getsize(dest_file_name)/1024/1024)))
+                self.log("....removing tmp of size {0} MB".format(math.ceil(os.path.getsize(dest_file_name)/1024/1024)))
                 os.unlink(dest_file_name)         
 
 
