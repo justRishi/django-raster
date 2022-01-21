@@ -127,32 +127,16 @@ class RasterLayer(models.Model, ValueCountMixin):
     description = models.TextField(blank=True, null=True)
     datatype = models.CharField(max_length=2, choices=DATATYPES, default='co')
     rasterfile = models.FileField(upload_to='rasters', null=True, blank=True,
-    help_text='For Raster files bigger than 1GB use SRID 3857, otherwise will be reprojected and this is very slow'
-                  'value is specified here, it will be used for all bands of this raster.')
+    help_text='USE SRID 3857! please \o/ ')
     source_url = models.CharField(default='', blank=True, max_length=2500,
-        help_text='External url to get the raster file from. If a value is set,'
-                  'the rasterfile field will be ignored.')
-    nodata = models.CharField(max_length=100, null=True, blank=True,
-        help_text='Leave blank to keep the internal band nodata values. If a nodata '
-                  'value is specified here, it will be used for all bands of this raster.')
-    srid = models.IntegerField(null=True, blank=True,
-        help_text='Leave blank to use the internal raster srid. If a srid is '
-                  'specified here, it will be used for all calculations.')
+        help_text='BEGINS WITH s3:\/\/')
+    nodata = models.CharField(max_length=100, null=True, blank=True)
+    srid = models.IntegerField(null=True, blank=True, help_text='DO NOT USE !!!')
     max_zoom = models.IntegerField(null=True, blank=True,
-        help_text='Leave blank to automatically determine the max zoom level '
-                  'from the raster scale. Otherwise the raster parsed up to '
-                  'the zoom level specified here.')
-    build_pyramid = models.BooleanField(default=True,
-        help_text='Should the tile pyramid be built? If unchecked, tiles will '
-                  'only be generated at the max zoom level.')
-    next_higher = models.BooleanField(default=True,
-        help_text='Compared to the scale of the rasterlayer, use the next-higher '
-                  'zoomlevel as max zoom? If unchecked, the next-lower zoom level '
-                  'is used. This flag is ignored if the max_zoom is manually '
-                  'specified.')
-    store_reprojected = models.BooleanField(default=False,
-        help_text='Should the reprojected raster be stored? If unchecked, the '
-                  'reprojected version of the raster is not stored.')
+        help_text='Leave blank to automatically determine the max zoom level ')
+    build_pyramid = models.BooleanField(default=True, help_text='DO NOT CHANGE')
+    next_higher = models.BooleanField(default=True, help_text='DO NOT CHANGE')
+    store_reprojected = models.BooleanField(default=False, help_text='DO NOT CHANGE !!! (Unless you are R.)')
     legend = models.ForeignKey(Legend, blank=True, null=True, on_delete=models.CASCADE)
     modified = models.DateTimeField(auto_now=True)
 
