@@ -157,7 +157,7 @@ class RasterLayerParser(object):
                 raise RasterException('Could not open rasterfile.')
         else:
             self.dataset = GDALRaster(filepath)
-            self.log("downloaded file {0} of size {1}MB".format(self.dataset.name, os.path.getsize(filepath)/1024/1024))
+            self.log("downloaded file {0} of size {1}MB".format(self.dataset.name, round(os.path.getsize(filepath)/1024/1024)))
 
         # Override srid if provided
         if self.rasterlayer.srid:
@@ -371,7 +371,7 @@ class RasterLayerParser(object):
                 self.log("....using gdal vsimem")
             else:
                 dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
-                self.log("....using tmp file {0}".format(dest_file_name))
+                # self.log("....using tmp file {0}".format(dest_file_name))
         
             # Snap dataset to the quadrant
             snapped_dataset = self.dataset.warp({
@@ -441,7 +441,7 @@ class RasterLayerParser(object):
                         
         finally:
             if not self.use_vsimem:
-                self.log("....removing tmp of size {0} MB".format(os.path.getsize(dest_file_name)/1024/1024))
+                self.log("....removing tmp of size {0} MB".format(round(os.path.getsize(dest_file_name)/1024/1024)))
                 os.unlink(dest_file_name)         
 
 
