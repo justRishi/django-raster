@@ -157,8 +157,7 @@ class RasterLayerParser(object):
                 raise RasterException('Could not open rasterfile.')
         else:
             self.dataset = GDALRaster(filepath)
-
-            self.log("temp for reading file in: {0} size: {1}".format(self.dataset.name, os.path.getsize(filepath)))
+            self.log("downloaded file {0} of size {1}MB".format(self.dataset.name, os.path.getsize(filepath)/1024/1024))
 
         # Override srid if provided
         if self.rasterlayer.srid:
@@ -442,6 +441,7 @@ class RasterLayerParser(object):
                         
         finally:
             if not self.use_vsimem:
+                self.log("....removing tmp of size {0} MB".format(os.path.getsize(dest_file_name)/1024/1024))
                 os.unlink(dest_file_name)         
 
 
