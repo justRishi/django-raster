@@ -455,9 +455,13 @@ class RasterLayerParser(object):
         finally:
             if not self.use_vsimem:
                 os.unlink(dest_file_name)
-            del bounds
-            del tilescale
-            del snapped_dataset
+            try:
+                del bounds
+                del tilescale
+                del snapped_dataset
+            except:
+                print('')
+                
             gc.collect()                  
 
 
