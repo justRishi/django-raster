@@ -20,6 +20,7 @@ from raster.models import RasterLayer, RasterLayerBandMetadata, RasterLayerRepro
 from raster.tiles import utils
 from raster.tiles.const import BATCH_STEP_SIZE, INTERMEDIATE_RASTER_FORMAT, WEB_MERCATOR_SRID, WEB_MERCATOR_TILESIZE
 
+#will not work in Django 4.0
 rasterlayers_parser_ended = Signal(providing_args=['instance'])
 
 
