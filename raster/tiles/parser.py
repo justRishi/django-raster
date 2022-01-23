@@ -11,6 +11,7 @@ import boto3
 import numpy
 import gc
 import math
+import platform
 
 from django.conf import settings
 from django.contrib.gis.gdal import GDALRaster, OGRGeometry
@@ -42,8 +43,14 @@ class RasterLayerParser(object):
         self.batch_step_size = int(getattr(settings, 'RASTER_BATCH_STEP_SIZE', BATCH_STEP_SIZE))
         self.batch_write_to_db_size = int(getattr(settings, 'RASTER_BATCH_TO_DB_SIZE', BATCH_TO_DB_SIZE))
         self.use_vsimem = bool(getattr(settings, 'RASTER_USE_VSIMEM', USE_VSIMEM))
+        self.parse_single_task = getattr(settings, 'RASTER_PARSE_SINGLE_TASK', False)
 
         self.s3_endpoint_url = getattr(settings, 'RASTER_S3_ENDPOINT_URL', None)
+
+        if platform.system() == 'Linux':
+            self.libc = ctypes.CDLL("libc.so.6")
+        else:
+            self.libc = None
        
     def log(self, msg, status=None, zoom=None):
         """
@@ -317,7 +324,6 @@ class RasterLayerParser(object):
         then creates  the tiles from the snapped raster.
         """
         # Abort if zoom level is above resolution of the raster layer
-        libc = ctypes.CDLL("libc.so.6")
 
         if zoom > self.max_zoom:
             return
@@ -335,8 +341,10 @@ class RasterLayerParser(object):
             self.process_quadrant(indexrange, zoom)
             indexrange = None
             gc.collect()
-            libc.malloc_trim(0)
 
+            if platform.system() == 'Linux':
+                self.libc.malloc_trim(0)
+            
         # Store histogram data
         if zoom == self.max_zoom:
             bandmetas = RasterLayerBandMetadata.objects.filter(rasterlayer=self.rasterlayer)
@@ -358,7 +366,6 @@ class RasterLayerParser(object):
         snapped_dataset = None
         bounds = None
         tilescale = None
-        libc = ctypes.CDLL("libc.so.6")
 
         self._quadrant_count += 1
         count_written = 0
@@ -388,16 +395,26 @@ class RasterLayerParser(object):
                 'height': (indexrange[3] - indexrange[1] + 1) * self.tilesize,
             })
         else:
-            # Snap dataset to the quadrant
-            snapped_dataset = self.dataset.warp({
+            if self.parse_single_task:
+                # Snap dataset to the quadrant
+                snapped_dataset = self.dataset.warp({
+                    'origin': [bounds[0], bounds[3]],
+                    'scale': [tilescale, -tilescale],
+                    'width': (indexrange[2] - indexrange[0] + 1) * self.tilesize,
+                    'height': (indexrange[3] - indexrange[1] + 1) * self.tilesize,
+                })
+                # self.log("snapped ds: {0}".format(snapped_dataset.name))
+
+                # self.log("....using tmp file {0}".format(dest_file_name))
+            else:
+                dest_file_name = os.path.join(self.tmpdir, '{}.tif'.format(uuid.uuid4()))
+                snapped_dataset = self.dataset.warp({
+                'name': dest_file_name,
                 'origin': [bounds[0], bounds[3]],
                 'scale': [tilescale, -tilescale],
                 'width': (indexrange[2] - indexrange[0] + 1) * self.tilesize,
                 'height': (indexrange[3] - indexrange[1] + 1) * self.tilesize,
-            })
-            # self.log("snapped ds: {0}".format(snapped_dataset.name))
-
-            # self.log("....using tmp file {0}".format(dest_file_name))
+            })    
         
         # Create all tiles in this quadrant in batches
         batch = []
@@ -466,14 +483,19 @@ class RasterLayerParser(object):
                     del bounds
                     gc.collect()
                     batch = []
-                    libc.malloc_trim(0)
+                    
+                    if platform.system() == 'Linux':
+                        self.libc.malloc_trim(0)
 
 
         if len(batch):
             RasterTile.objects.bulk_create(batch, self.batch_write_to_db_size)
                     
         try:
-            
+            if not self.use_vsimem:
+                if not self.parse_single_task:
+                    os.unlink(dest_file_name)
+                    self.log("... deleting zoom level tmp file")
             del bounds
             del tilescale
             del snapped_dataset
