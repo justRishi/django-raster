@@ -477,7 +477,7 @@ class RasterLayerParser(object):
             del bounds
             del tilescale
             del snapped_dataset
-            libc.malloc_trim(0)
+            # libc.malloc_trim(0)
         except:
             self.log(".")     
 
